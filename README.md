@@ -6,8 +6,15 @@
 
 Clippr is a lightweight Windows clipboard manager with saved tabs, image capture, a preview window, and OCR. It is a single PowerShell + WinForms app with four switchable themes and no external runtime dependencies.
 
+## First, the duplicate-image fix: "Strip images (text only)"
+
+Copying a cell range or formatted selection from **Excel** can place **both plain text and an image representation** on the Windows clipboard. Clippr would then save the same copy twice: once as text and once as a redundant image card. The **Strip images (text only)** option was added for exactly that problem. When the clipboard contains both text and an image, Clippr keeps the text, removes the image half, and leaves the history clean and searchable.
+
+> **Note:** This option is enabled by default. Pure image copies are still captured normally. Turn it off only when you intentionally want the image representation of a mixed text/image copy.
+
 ## Features
 
+- **Strip images (text only)** - the first-line fix for duplicate Excel/Office clipboard entries. Stores the text and strips the redundant image copy. Enabled by default; toggle it in the toolbar.
 - **Persistent clipboard history** - text and images survive restarts.
 - **Saved tabs** - built-in `All items`, `Text`, and `Images` views plus your own tabs, each with its own history.
 - **On/Off capture switch** - pause and resume clipboard capture from the header or the tray menu.

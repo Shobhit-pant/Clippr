@@ -3268,6 +3268,10 @@ $script:timer.Add_Tick({
         }
 
         if ($hasImage) {
+            # Mixed clipboard entries are common when copying Excel cells:
+            # the clipboard holds both the text and a bitmap of the selection.
+            # Keep the text and drop the redundant image so one copy does not
+            # create two history entries.
             if ($hasText -and $script:stripImages) {
                 $tx = [System.Windows.Forms.Clipboard]::GetText()
                 if (-not [string]::IsNullOrEmpty($tx)) { [System.Windows.Forms.Clipboard]::SetText($tx) }
