@@ -1,0 +1,28 @@
+# Local clipboard data and OCR secrets
+clippr.json
+settings.json
+images/
+autoname-*.txt
+
+# Personal / customer documents
+*.xls
+*.xlsx
+*.xlsm
+*.csv
+*.pdf
+*.docx
+*.doc
+
+# Screenshots and test captures (keep the app mascot)
+*.png
+!clippr.png
+screenshots/
+test-images/
+
+# Logs, backups, local environment
+*.log
+*.tmp
+*.bak
+.env
+.env.*
+secrets*
