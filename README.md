@@ -4,7 +4,7 @@
 
 **Friendly Neighborhood Clipboard manager**
 
-Clippr is a lightweight Windows clipboard manager with saved tabs, image capture, a preview window, and OCR. It is a single PowerShell + WinForms app with a deep-slate glassmorphism look and no external runtime dependencies.
+Clippr is a lightweight Windows clipboard manager with saved tabs, image capture, a preview window, and OCR. It is a single PowerShell + WinForms app with four switchable themes and no external runtime dependencies.
 
 ## Features
 
@@ -12,13 +12,13 @@ Clippr is a lightweight Windows clipboard manager with saved tabs, image capture
 - **Saved tabs** - built-in `All items`, `Text`, and `Images` views plus your own tabs, each with its own history.
 - **On/Off capture switch** - pause and resume clipboard capture from the header or the tray menu.
 - **Instant image capture** - an image gets a temporary size label immediately, while OCR runs afterwards in a background process and replaces the label with the first readable line.
-- **Preview window** - double-click an item to copy it, or use **PREVIEW** to open a larger image/text view with a separate **OCR TEXT** tab.
+- **Preview window** - double-click an item to copy it, or use **PREVIEW** to open a larger image/text view with a separate **OCR TEXT** tab. The preview's **OCR + COPY** button runs OCR and copies the recognized text to the clipboard in the same click.
 - **Screen capture** - click **CAPTURE** (or press `Ctrl+Shift+S`) and drag a rectangle; `Esc` cancels.
 - **OCR providers** - Windows OCR, OCR.space, Azure AI Vision, Google Cloud Vision, and self-hosted PaddleOCR, including Paddle Hub, multipart, and `image_url` request modes.
 - **Windows OCR fallback** - if a cloud provider is not configured or fails, Clippr falls back to the local Windows OCR engine.
 - **Search and tab management** - filter the active view, create/rename/delete tabs.
 - **Tray support** - minimize to the tray; reopen, capture, pause, open settings, or exit from the tray menu.
-- **Glassmorphism theme** - deep-slate canvas, blurred emerald and violet mesh gradients, frosted panels with 1px cyan-tinted borders, Segoe UI typography, dark title bar, and a slim custom scrollbar.
+- **Four themes** - choose **Swiss Paper**, **Midnight Brass**, **Neo-Brutalist**, or **Calm Slate** from the theme picker at the top of **SETTINGS**. The app repaints instantly, and the choice is remembered.
 
 ## Requirements
 

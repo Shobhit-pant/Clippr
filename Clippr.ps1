@@ -1,5 +1,5 @@
 ﻿# ============================================================
-#  Clippr - friendly neighborhood clipboard manager (glassmorphism theme)
+#  Clippr - friendly neighborhood clipboard manager (four switchable themes)
 #  Tabs, history, On/Off capture switch, screen capture, OCR.
 # ============================================================
 Add-Type -AssemblyName System.Windows.Forms
@@ -15,6 +15,7 @@ public static class ClipprNative {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
     [DllImport("uxtheme.dll", CharSet=CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
+    [DllImport("user32.dll")] public static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
     [DllImport("uxtheme.dll", EntryPoint="#135")] public static extern int SetPreferredAppMode(int appMode);
     [DllImport("uxtheme.dll", EntryPoint="#136")] public static extern void FlushMenuThemes();
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
@@ -142,7 +143,7 @@ if (-not (Test-Path -LiteralPath $script:DataFile) -and (Test-Path -LiteralPath 
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ---------- deep-slate glassmorphism palette ----------
+# ---------- palette defaults (replaced at startup by Set-ThemePalette) ----------
 $C_BG      = [System.Drawing.Color]::FromArgb(11,15,23)
 $C_PANEL   = [System.Drawing.Color]::FromArgb(15,23,42)
 $C_PANEL2  = [System.Drawing.Color]::FromArgb(17,24,39)
@@ -170,6 +171,207 @@ $C_CARD_SEL  = [System.Drawing.Color]::FromArgb(172, 8, 47, 73)
 $C_INK     = [System.Drawing.Color]::FromArgb(2,6,23)
 $C_POP     = [System.Drawing.Color]::FromArgb(167,139,250)
 $C_FONT    = 'Segoe UI'
+
+# ---------- theme system ----------
+function Col([string]$hex) { return [System.Drawing.ColorTranslator]::FromHtml($hex) }
+function ColA([int]$a, [string]$hex) {
+    $c = Col $hex
+    return [System.Drawing.Color]::FromArgb($a, $c.R, $c.G, $c.B)
+}
+function Get-ColorRef([System.Drawing.Color]$c) {
+    return [int]($c.R -bor ($c.G -shl 8) -bor ($c.B -shl 16))
+}
+
+$script:ThemeBase = @{
+    Key = 'Swiss'; Name = 'Swiss Paper'; IsLight = $true
+    Font = 'Segoe UI'
+    SubText = 'FRIENDLY NEIGHBORHOOD CLIPBOARD MANAGER'
+    SubFont = 'Segoe UI'; SubSize = 7.5; SubStyle = [System.Drawing.FontStyle]::Regular
+    CardFont = 'Segoe UI Semibold'; CardFontSize = 10.5; CardFontStyle = [System.Drawing.FontStyle]::Regular; CardUppercase = $false
+    MetaFont = 'Segoe UI'; MetaFontSize = 8.25
+    TabFont = 'Segoe UI'; TabFontSize = 9.5; TabUppercase = $false
+    ButtonFont = 'Segoe UI'; ButtonFontSize = 8.5
+    LabelFont = 'Segoe UI'; LabelSize = 8
+    DisplayFont = 'Segoe UI'; DisplaySize = 27; DisplayStyle = [System.Drawing.FontStyle]::Bold
+    DisplayColor = $null; TitleY = 8; TitleUppercase = $false
+    AccentInk = Col '#FFFFFF'; Ink = Col '#101215'
+    CardShadowColor = (ColA 24 '#0F172A'); CardShadowOffset = 1; HardShadow = $false
+    CardBorderWidth = 1; ButtonBorderWidth = 1; TagBorderWidth = 1; ListBorderWidth = 1
+    CardBarWidth = 3; CardBarOpacity = 0.3
+    PanelRadius = 10; ButtonRadius = 6; CardRadius = 8; SearchRadius = 8; TagRadius = 4
+    BackgroundStyle = 'soft'; LogoMode = 'color'
+    DwmDark = $false; DwmCaption = (Col '#FFFFFF'); DwmBorder = (Col '#D8E0EA')
+    StatusLineWidth = 1; HeaderLineWidth = 1; SidebarBorderWidth = 1; TabBorderWidth = 1
+}
+
+function New-Theme([hashtable]$overrides) {
+    $h = @{}
+    foreach ($k in $script:ThemeBase.Keys) { $h[$k] = $script:ThemeBase[$k] }
+    foreach ($k in $overrides.Keys) { $h[$k] = $overrides[$k] }
+    if ($null -eq $h.DisplayColor) { $h.DisplayColor = $h.Text }
+    return [pscustomobject]$h
+}
+
+$script:Themes = @{}
+$script:Themes['Swiss'] = New-Theme @{
+    Key = 'Swiss'; Name = 'Swiss Paper'; IsLight = $true
+    Bg = (Col '#F3EFE6'); Surface = (Col '#FBF9F4'); Surface2 = (Col '#FFFDF9'); Surface3 = (Col '#F1ECE2')
+    Text = (Col '#1A1815'); Muted = (Col '#746D62'); Subtle = (Col '#8C8477'); Border = (Col '#DAD3C5')
+    Accent = (Col '#C8432F'); Accent2 = (Col '#8C5A4A'); AccentSoft = (Col '#F3E5E0'); AccentInk = (Col '#FFFFFF')
+    Card = (Col '#FFFDF9'); CardHi = (Col '#F8F4EC'); CardSel = (Col '#F6E9E4')
+    CardBorder = (Col '#E2DCCF'); CardHoverBorder = (Col '#D6CEC0'); CardSelBorder = (Col '#C8432F')
+    CardBarWidth = 3; CardBarOpacity = 0.35
+    ListBg = (Col '#FBF9F4'); ListBg2 = (Col '#F7F3EA'); ListBorder = (Col '#DCD5C7')
+    Sidebar = (Col '#EDE8DD'); Sidebar2 = (Col '#E8E2D6')
+    StatusBg = (Col '#E8E2D6'); StatusText = (Col '#6B6459'); StatusLine = (Col '#D8D1C3')
+    SearchBg = (Col '#FFFDF9'); SearchBorder = (Col '#DCD5C7')
+    TagBg = (Col '#F1ECE2'); TagText = (Col '#5E574D'); TagBorder = (Col '#DED7C9')
+    TabSelBg = (Col '#1A1815'); TabSelText = (Col '#FFFFFF'); TabSelBorder = (Col '#1A1815')
+    TabSelDot = (Col '#C8432F'); TabSelCount = (Col '#B9B3A9'); TabHoverBg = (Col '#F6F1E8'); TabText = (Col '#1A1815')
+    ToggleOnBg = (Col '#1A1815'); ToggleOnText = (Col '#FFFFFF'); ToggleOnBorder = (Col '#1A1815'); ToggleOnDot = (Col '#C8432F')
+    ToggleOffBg = (Col '#FBF9F4'); ToggleOffText = (Col '#1A1815'); ToggleOffBorder = (Col '#CFC7B8')
+    BtnPrimaryBg = (Col '#1A1815'); BtnPrimaryText = (Col '#FFFFFF'); BtnPrimaryBorder = (Col '#1A1815')
+    BtnPrimaryHover = (Col '#2B2722'); BtnPrimaryDown = (Col '#000000')
+    BtnSecondaryBg = (Col '#FBF9F4'); BtnSecondaryText = (Col '#1A1815'); BtnSecondaryBorder = (Col '#CFC7B8')
+    BtnSecondaryHover = (Col '#F2EDE3'); BtnSecondaryDown = (Col '#E8E2D6')
+    DisplayFont = 'Georgia'; DisplaySize = 29; DisplayStyle = [System.Drawing.FontStyle]::Regular; TitleY = 8
+    CardFont = 'Segoe UI Semibold'; CardFontSize = 10.5
+    PanelRadius = 3; ButtonRadius = 2; CardRadius = 2; SearchRadius = 2; TagRadius = 1
+    CardShadowColor = (ColA 16 '#4A3826'); CardShadowOffset = 1
+    BackgroundStyle = 'paper'; LogoMode = 'contrast'
+    DwmDark = $true; DwmCaption = (Col '#1A1815'); DwmBorder = (Col '#1A1815')
+}
+
+$script:Themes['Brass'] = New-Theme @{
+    Key = 'Brass'; Name = 'Midnight Brass'; IsLight = $false
+    Bg = (Col '#0D0F12'); Surface = (Col '#12151A'); Surface2 = (Col '#161A20'); Surface3 = (Col '#1B2028')
+    Text = (Col '#F0EBDD'); Muted = (Col '#8C877B'); Subtle = (Col '#B8B2A4'); Border = (Col '#2A2E36')
+    Accent = (Col '#C6A15B'); Accent2 = (Col '#D8B87A'); AccentSoft = (Col '#E8D9B8'); AccentInk = (Col '#101215')
+    Card = (Col '#161A20'); CardHi = (Col '#1B2028'); CardSel = (Col '#1C2027')
+    CardBorder = (Col '#272C35'); CardHoverBorder = (Col '#3A404A'); CardSelBorder = (Col '#C6A15B')
+    CardBarWidth = 3; CardBarOpacity = 0.35
+    ListBg = (Col '#12151A'); ListBg2 = (Col '#0F1216'); ListBorder = (Col '#2A2F38')
+    Sidebar = (Col '#0A0C0F'); Sidebar2 = (Col '#0D0F12')
+    StatusBg = (Col '#080A0D'); StatusText = (Col '#8C877B'); StatusLine = (Col '#22262D')
+    SearchBg = (Col '#161A20'); SearchBorder = (Col '#2A2F38')
+    TagBg = (Col '#222730'); TagText = (Col '#C6A15B'); TagBorder = (Col '#343A45')
+    TabSelBg = (Col '#C6A15B'); TabSelText = (Col '#101215'); TabSelBorder = (Col '#C6A15B')
+    TabSelDot = (Col '#101215'); TabSelCount = (Col '#5A4E38'); TabHoverBg = (Col '#1A1E25'); TabText = (Col '#F0EBDD')
+    ToggleOnBg = (Col '#C6A15B'); ToggleOnText = (Col '#101215'); ToggleOnBorder = (Col '#C6A15B'); ToggleOnDot = (Col '#101215')
+    ToggleOffBg = (Col '#12151A'); ToggleOffText = (Col '#F0EBDD'); ToggleOffBorder = (Col '#3A3F48')
+    BtnPrimaryBg = (Col '#C6A15B'); BtnPrimaryText = (Col '#101215'); BtnPrimaryBorder = (Col '#C6A15B')
+    BtnPrimaryHover = (Col '#D4B270'); BtnPrimaryDown = (Col '#A88545')
+    BtnSecondaryBg = (Col '#12151A'); BtnSecondaryText = (Col '#F0EBDD'); BtnSecondaryBorder = (Col '#343A45')
+    BtnSecondaryHover = (Col '#1A1E25'); BtnSecondaryDown = (Col '#222730')
+    DisplayFont = 'Georgia'; DisplaySize = 29; DisplayStyle = [System.Drawing.FontStyle]::Regular; TitleY = 8
+    CardFont = 'Segoe UI Semibold'; CardFontSize = 10.5
+    PanelRadius = 4; ButtonRadius = 3; CardRadius = 3; SearchRadius = 3; TagRadius = 2
+    CardShadowColor = (ColA 45 '#000000'); CardShadowOffset = 1
+    BackgroundStyle = 'ink'; LogoMode = 'sepia'
+    DwmDark = $true; DwmCaption = (Col '#080A0D'); DwmBorder = (Col '#262A31')
+}
+
+$script:Themes['Brutal'] = New-Theme @{
+    Key = 'Brutal'; Name = 'Neo-Brutalist'; IsLight = $true
+    Bg = (Col '#F1EDE2'); Surface = (Col '#FFFDF5'); Surface2 = (Col '#FFFFFF'); Surface3 = (Col '#E7E1D3')
+    Text = (Col '#0D0D0D'); Muted = (Col '#4A4A4A'); Subtle = (Col '#5A5A5A'); Border = (Col '#0D0D0D')
+    Accent = (Col '#2B4DFF'); Accent2 = (Col '#D6FF3F'); AccentSoft = (Col '#D6FF3F'); AccentInk = (Col '#FFFFFF')
+    Card = (Col '#FFFFFF'); CardHi = (Col '#F7F4EA'); CardSel = (Col '#D6FF3F')
+    CardBorder = (Col '#0D0D0D'); CardHoverBorder = (Col '#0D0D0D'); CardSelBorder = (Col '#0D0D0D')
+    CardBarWidth = 5; CardBarOpacity = 1.0
+    ListBg = (Col '#FFFDF5'); ListBg2 = (Col '#FFFDF5'); ListBorder = (Col '#0D0D0D')
+    Sidebar = (Col '#E7E1D3'); Sidebar2 = (Col '#F1EDE2')
+    StatusBg = (Col '#0D0D0D'); StatusText = (Col '#D6FF3F'); StatusLine = (Col '#D6FF3F')
+    SearchBg = (Col '#FFFDF5'); SearchBorder = (Col '#0D0D0D')
+    TagBg = (Col '#0D0D0D'); TagText = (Col '#D6FF3F'); TagBorder = (Col '#0D0D0D')
+    TabSelBg = (Col '#0D0D0D'); TabSelText = (Col '#D6FF3F'); TabSelBorder = (Col '#0D0D0D')
+    TabSelDot = (Col '#D6FF3F'); TabSelCount = (Col '#A8C72E'); TabHoverBg = (Col '#F7F4EA'); TabText = (Col '#0D0D0D')
+    ToggleOnBg = (Col '#D6FF3F'); ToggleOnText = (Col '#0D0D0D'); ToggleOnBorder = (Col '#0D0D0D'); ToggleOnDot = (Col '#0D0D0D')
+    ToggleOffBg = (Col '#FFFDF5'); ToggleOffText = (Col '#0D0D0D'); ToggleOffBorder = (Col '#0D0D0D')
+    BtnPrimaryBg = (Col '#2B4DFF'); BtnPrimaryText = (Col '#FFFFFF'); BtnPrimaryBorder = (Col '#0D0D0D')
+    BtnPrimaryHover = (Col '#1F3EDB'); BtnPrimaryDown = (Col '#1732B0')
+    BtnSecondaryBg = (Col '#FFFDF5'); BtnSecondaryText = (Col '#0D0D0D'); BtnSecondaryBorder = (Col '#0D0D0D')
+    BtnSecondaryHover = (Col '#D6FF3F'); BtnSecondaryDown = (Col '#C2E936')
+    DisplayFont = 'Arial Black'; DisplaySize = 24; DisplayStyle = [System.Drawing.FontStyle]::Bold; TitleY = 10; TitleUppercase = $true
+    SubFont = 'Consolas'; SubSize = 7.5
+    CardFont = 'Arial Black'; CardFontSize = 9.5; CardFontStyle = [System.Drawing.FontStyle]::Regular
+    MetaFont = 'Consolas'; MetaFontSize = 8.25
+    TabFont = 'Segoe UI'; TabFontSize = 9.0; TabUppercase = $true
+    ButtonFont = 'Arial Black'; ButtonFontSize = 8.0
+    PanelRadius = 0; ButtonRadius = 0; CardRadius = 0; SearchRadius = 0; TagRadius = 0
+    CardBorderWidth = 2; ButtonBorderWidth = 2; TagBorderWidth = 2; ListBorderWidth = 2
+    HardShadow = $true; CardShadowColor = (Col '#0D0D0D'); CardShadowOffset = 4
+    BackgroundStyle = 'flat'; LogoMode = 'contrast'
+    DwmDark = $true; DwmCaption = (Col '#0D0D0D'); DwmBorder = (Col '#0D0D0D')
+    StatusLineWidth = 2; HeaderLineWidth = 2; SidebarBorderWidth = 2; TabBorderWidth = 2
+}
+
+$script:Themes['Calm'] = New-Theme @{
+    Key = 'Calm'; Name = 'Calm Slate'; IsLight = $true
+    Bg = (Col '#EEF2F7'); Surface = (Col '#F8FAFC'); Surface2 = (Col '#FFFFFF'); Surface3 = (Col '#F4F7FB')
+    Text = (Col '#172033'); Muted = (Col '#64748B'); Subtle = (Col '#94A3B8'); Border = (Col '#D8E0EA')
+    Accent = (Col '#2563EB'); Accent2 = (Col '#2563EB'); AccentSoft = (Col '#E7EFFE'); AccentInk = (Col '#FFFFFF')
+    Card = (Col '#FFFFFF'); CardHi = (Col '#F5F8FD'); CardSel = (Col '#F2F7FF')
+    CardBorder = (Col '#DFE6EF'); CardHoverBorder = (Col '#C9D6E6'); CardSelBorder = (Col '#BFD3FA')
+    CardBarWidth = 3; CardBarOpacity = 0.38
+    ListBg = (Col '#F4F7FB'); ListBg2 = (Col '#F0F5FB'); ListBorder = (Col '#D8E0EA')
+    Sidebar = (Col '#FFFFFF'); Sidebar2 = (Col '#F8FAFC')
+    StatusBg = (Col '#FFFFFF'); StatusText = (Col '#64748B'); StatusLine = (Col '#D8E0EA')
+    SearchBg = (Col '#FFFFFF'); SearchBorder = (Col '#D6DFEA')
+    TagBg = (Col '#E8F0FE'); TagText = (Col '#1D4ED8'); TagBorder = (Col '#D2E0FC')
+    TabSelBg = (Col '#E7EFFE'); TabSelText = (Col '#1D4ED8'); TabSelBorder = (Col '#C7D9FB')
+    TabSelDot = (Col '#2563EB'); TabSelCount = (Col '#64748B'); TabHoverBg = (Col '#F5F8FD'); TabText = (Col '#172033')
+    ToggleOnBg = (Col '#0E9F6E'); ToggleOnText = (Col '#FFFFFF'); ToggleOnBorder = (Col '#0E9F6E'); ToggleOnDot = (Col '#FFFFFF')
+    ToggleOffBg = (Col '#FFFFFF'); ToggleOffText = (Col '#334155'); ToggleOffBorder = (Col '#D8E0EA')
+    BtnPrimaryBg = (Col '#2563EB'); BtnPrimaryText = (Col '#FFFFFF'); BtnPrimaryBorder = (Col '#2563EB')
+    BtnPrimaryHover = (Col '#1D4ED8'); BtnPrimaryDown = (Col '#1E40AF')
+    BtnSecondaryBg = (Col '#FFFFFF'); BtnSecondaryText = (Col '#334155'); BtnSecondaryBorder = (Col '#D8E0EA')
+    BtnSecondaryHover = (Col '#F5F8FD'); BtnSecondaryDown = (Col '#E7EFFE')
+    DisplayFont = 'Segoe UI'; DisplaySize = 26; DisplayStyle = [System.Drawing.FontStyle]::Bold; TitleY = 9
+    SubText = 'Friendly Neighborhood Clipboard manager'; SubFont = 'Segoe UI'; SubSize = 8.5
+    CardFont = 'Segoe UI Semibold'; CardFontSize = 10.5
+    PanelRadius = 10; ButtonRadius = 7; CardRadius = 8; SearchRadius = 8; TagRadius = 4
+    CardShadowColor = (ColA 18 '#0F172A'); CardShadowOffset = 1
+    BackgroundStyle = 'soft'; LogoMode = 'color'
+    DwmDark = $true; DwmCaption = (Col '#172033'); DwmBorder = (Col '#172033')
+}
+
+function Set-ThemePalette([string]$key) {
+    if (-not $key -or -not $script:Themes.ContainsKey($key)) { $key = 'Swiss' }
+    $t = $script:Themes[$key]
+    $script:Theme = $t
+    $script:ThemeKey = $key
+    $script:C_BG = $t.Bg
+    $script:C_PANEL = $t.Surface
+    $script:C_PANEL2 = $t.Surface2
+    $script:C_PANEL3 = $t.Surface3
+    $script:C_TEXT = $t.Text
+    $script:C_MUTED = $t.Muted
+    $script:C_SUBTLE = $t.Subtle
+    $script:C_ACCENT = $t.Accent
+    $script:C_ACCENT2 = $t.Accent2
+    $script:C_ACCENT_SOFT = $t.AccentSoft
+    $script:C_EMERALD = $t.ToggleOnBg
+    $script:C_EMERALD_SOFT = $t.AccentSoft
+    $script:C_VIOLET = $t.Accent2
+    $script:C_VIOLET_SOFT = $t.AccentSoft
+    $script:C_SEL = $t.TabSelBg
+    $script:C_BORDER = $t.Border
+    $script:C_GLASS = $t.Surface2
+    $script:C_GLASS_HI = $t.Surface3
+    $script:C_GLASS_BORDER = $t.ListBorder
+    $script:C_GLASS_TOP = (ColA 18 '#FFFFFF')
+    $script:C_GLASS_BOT = (ColA 10 '#000000')
+    $script:C_CARD = $t.Card
+    $script:C_CARD_HI = $t.CardHi
+    $script:C_CARD_SEL = $t.CardSel
+    $script:C_INK = $t.Ink
+    $script:C_POP = $t.Accent2
+    $script:C_FONT = $t.Font
+    $script:ThemeDwmDark = if ($t.DwmDark) { 1 } else { 0 }
+    $script:ThemeDwmCaption = Get-ColorRef $t.DwmCaption
+    $script:ThemeDwmBorder = Get-ColorRef $t.DwmBorder
+}
 
 # ---------- drawing helpers ----------
 function Get-RoundedPath([single]$x, [single]$y, [single]$w, [single]$h, [single]$r) {
@@ -220,31 +422,21 @@ function Get-GlassCrop([System.Windows.Forms.Control]$ctrl) {
         if ($hit -and $hit.W -eq $w -and $hit.H -eq $h) { return $hit.Bmp }
         if ($hit -and $hit.Bmp) { try { $hit.Bmp.Dispose() } catch { } }
 
+        $t = $script:Theme
+        $isTabs = ($script:tabList -and [object]::ReferenceEquals($ctrl, $script:tabList))
+        $bg = if ($isTabs) { $t.Sidebar } else { $t.ListBg }
+        $bg2 = if ($isTabs) { $t.Sidebar2 } else { $t.ListBg2 }
+
         $bmp = New-Object System.Drawing.Bitmap($w, $h, [System.Drawing.Imaging.PixelFormat]::Format32bppPArgb)
         $gg = [System.Drawing.Graphics]::FromImage($bmp)
         try {
             $gg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-            $sp = $ctrl.PointToScreen([System.Drawing.Point]::Empty)
-            $fp = $form.PointToScreen([System.Drawing.Point]::Empty)
-            $img = $form.BackgroundImage
-            if ($img) {
-                $fx = [single]$img.Width / [single][Math]::Max(1, $form.ClientSize.Width)
-                $fy = [single]$img.Height / [single][Math]::Max(1, $form.ClientSize.Height)
-                $src = New-Object System.Drawing.RectangleF -ArgumentList @(
-                    [single](($sp.X - $fp.X) * $fx),
-                    [single](($sp.Y - $fp.Y) * $fy),
-                    [single]($w * $fx),
-                    [single]($h * $fy))
-                $dst = New-Object System.Drawing.Rectangle(0, 0, $w, $h)
-                $gg.DrawImage($img, $dst, $src, [System.Drawing.GraphicsUnit]::Pixel)
-            } else {
-                $gg.Clear($C_PANEL)
-            }
+            $gg.Clear($bg)
             $rect = New-Object System.Drawing.Rectangle(0, 0, $w, $h)
-            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $C_GLASS_TOP, $C_GLASS_BOT, 90)
+            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $bg, $bg2, 90)
             $gg.FillRectangle($lg, $rect)
             $lg.Dispose()
-            $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(18, 226, 232, 240), [System.Drawing.Color]::FromArgb(0, 226, 232, 240), 90)
+            $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(16, 255, 255, 255), [System.Drawing.Color]::FromArgb(0, 255, 255, 255), 90)
             $gg.FillRectangle($sheen, $rect)
             $sheen.Dispose()
         } finally {
@@ -261,7 +453,7 @@ function Get-HistScrollMetrics {
     if (-not $list -or -not $ov) { return $null }
     $total = $list.Items.Count
     $h = [Math]::Max(1, $list.ClientSize.Height)
-    $vis = [Math]::Max(1, [int][Math]::Ceiling($h / [double]$list.ItemHeight))
+    $vis = [Math]::Max(1, [int][Math]::Floor($h / [double]$list.ItemHeight))
     $maxTop = [Math]::Max(0, $total - $vis)
     $trackH = [Math]::Max(1, $ov.Height)
     $thumbH = $trackH
@@ -286,6 +478,7 @@ function Update-HistScroll {
         $bh = [Math]::Max(10, $list.Height)
         $script:histScroll.Bounds = New-Object System.Drawing.Rectangle($x, $y, 17, $bh)
         $script:histScroll.BringToFront()
+        try { [void][ClipprNative]::ShowScrollBar($list.Handle, 1, $false) } catch { }
         $m = Get-HistScrollMetrics
         if (-not $m -or $m.Total -le $m.Visible -or $m.Total -le 0) {
             $script:histScroll.Visible = $false
@@ -329,11 +522,13 @@ function New-DialogBackground([int]$w, [int]$h) {
     $bmp = New-GlassBackground $w $h
     try {
         $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $t = $script:Theme
         $rect = New-Object System.Drawing.Rectangle(0, 0, $w, $h)
-        $veil = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(210, 7, 10, 20))
+        $alpha = if ($t.IsLight) { 236 } else { 218 }
+        $veil = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($alpha, $t.Surface.R, $t.Surface.G, $t.Surface.B))
         $g.FillRectangle($veil, $rect)
         $veil.Dispose()
-        $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(20, 226, 232, 240), [System.Drawing.Color]::FromArgb(0, 226, 232, 240), 90)
+        $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(20, 255, 255, 255), [System.Drawing.Color]::FromArgb(0, 255, 255, 255), 90)
         $g.FillRectangle($sheen, $rect)
         $sheen.Dispose()
         $g.Dispose()
@@ -344,49 +539,61 @@ function New-DialogBackground([int]$w, [int]$h) {
 function New-GlassBackground([int]$w, [int]$h) {
     if ($w -lt 1) { $w = 1 }
     if ($h -lt 1) { $h = 1 }
+    $t = $script:Theme
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     try {
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
         $rect = New-Object System.Drawing.Rectangle(0, 0, $w, $h)
-        $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(7,10,20), [System.Drawing.Color]::FromArgb(15,23,42), 35)
-        $g.FillRectangle($lg, $rect)
-        $lg.Dispose()
 
-        # blurred emerald + violet mesh, layered over deep slate
-        Add-GlowBlob $g ($w * 0.10) ($h * 0.04) ($w * 0.54) ($h * 0.60) 16 185 129 165
-        Add-GlowBlob $g ($w * 0.94) ($h * 0.12) ($w * 0.50) ($h * 0.56) 139 92 246 155
-        Add-GlowBlob $g ($w * 0.78) ($h * 1.02) ($w * 0.58) ($h * 0.48) 52 211 153 125
-        Add-GlowBlob $g ($w * 0.04) ($h * 0.92) ($w * 0.46) ($h * 0.46) 124 58 237 130
-        Add-GlowBlob $g ($w * 0.42) ($h * 0.58) ($w * 0.44) ($h * 0.42) 16 185 129 48
-        Add-GlowBlob $g ($w * 0.88) ($h * 0.62) ($w * 0.40) ($h * 0.40) 139 92 246 52
-        Add-GlowBlob $g ($w * 0.58) ($h * 0.44) ($w * 0.30) ($h * 0.34) 34 211 238 55
-        Add-GlowBlob $g ($w * 0.44) ($h * 0.02) ($w * 0.26) ($h * 0.22) 226 232 240 26
-
-        # soft edge vignette keeps the centre luminous
-        $vp = New-Object System.Drawing.Drawing2D.GraphicsPath
-        $vp.AddRectangle($rect)
-        $vbr = New-Object System.Drawing.Drawing2D.PathGradientBrush($vp)
-        $vbr.CenterColor = [System.Drawing.Color]::FromArgb(0, 2, 6, 23)
-        $vsur = New-Object 'System.Drawing.Color[]' $vp.PointCount
-        for ($i = 0; $i -lt $vp.PointCount; $i++) {
-            $vsur[$i] = [System.Drawing.Color]::FromArgb(112, 2, 6, 23)
-        }
-        $vbr.SurroundColors = $vsur
-        $g.FillPath($vbr, $vp)
-        $vbr.Dispose(); $vp.Dispose()
-
-        # fine film grain
-        $rnd = New-Object System.Random(11)
-        for ($i = 0; $i -lt 1500; $i++) {
-            $sx = $rnd.NextDouble() * $w
-            $sy = $rnd.NextDouble() * $h
-            $sa = $rnd.Next(3, 11)
-            $ss = [single]($rnd.NextDouble() * 1.1 + 0.35)
-            $sb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($sa, 255, 255, 255))
-            $g.FillEllipse($sb, [single]$sx, [single]$sy, $ss, $ss)
-            $sb.Dispose()
+        switch ($t.BackgroundStyle) {
+            'paper' {
+                $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $t.Bg, $t.Surface, 90)
+                $g.FillRectangle($lg, $rect); $lg.Dispose()
+                Add-GlowBlob $g ($w * 0.10) ($h * 0.05) ($w * 0.56) ($h * 0.56) $t.Accent.R $t.Accent.G $t.Accent.B 10
+                Add-GlowBlob $g ($w * 0.88) ($h * 0.86) ($w * 0.38) ($h * 0.38) $t.Accent2.R $t.Accent2.G $t.Accent2.B 8
+                $rnd = New-Object System.Random(13)
+                for ($i = 0; $i -lt 2000; $i++) {
+                    $sx = $rnd.NextDouble() * $w
+                    $sy = $rnd.NextDouble() * $h
+                    $sa = $rnd.Next(2, 8)
+                    $ss = [single]($rnd.NextDouble() * 0.9 + 0.3)
+                    $sb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($sa, 88, 68, 48))
+                    $g.FillEllipse($sb, [single]$sx, [single]$sy, $ss, $ss)
+                    $sb.Dispose()
+                }
+            }
+            'ink' {
+                $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $t.Bg, $t.Surface, 35)
+                $g.FillRectangle($lg, $rect); $lg.Dispose()
+                Add-GlowBlob $g ($w * 0.86) ($h * 0.05) ($w * 0.52) ($h * 0.50) $t.Accent.R $t.Accent.G $t.Accent.B 26
+                Add-GlowBlob $g ($w * 0.08) ($h * 0.92) ($w * 0.42) ($h * 0.42) $t.Accent2.R $t.Accent2.G $t.Accent2.B 14
+                Add-GlowBlob $g ($w * 0.45) ($h * 0.44) ($w * 0.34) ($h * 0.34) 226 232 240 10
+                $rnd = New-Object System.Random(11)
+                for ($i = 0; $i -lt 1600; $i++) {
+                    $sx = $rnd.NextDouble() * $w
+                    $sy = $rnd.NextDouble() * $h
+                    $sa = $rnd.Next(2, 8)
+                    $ss = [single]($rnd.NextDouble() * 1.0 + 0.3)
+                    $sb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($sa, 255, 255, 255))
+                    $g.FillEllipse($sb, [single]$sx, [single]$sy, $ss, $ss)
+                    $sb.Dispose()
+                }
+            }
+            'flat' {
+                $g.Clear($t.Bg)
+                $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(12, 13, 13, 13), 1)
+                for ($x = 0; $x -lt $w; $x += 32) { $g.DrawLine($pen, $x, 0, $x, $h) }
+                for ($y = 0; $y -lt $h; $y += 32) { $g.DrawLine($pen, 0, $y, $w, $y) }
+                $pen.Dispose()
+            }
+            default {
+                $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $t.Bg, $t.Surface, 90)
+                $g.FillRectangle($lg, $rect); $lg.Dispose()
+                Add-GlowBlob $g ($w * 0.12) ($h * 0.02) ($w * 0.56) ($h * 0.52) 255 255 255 32
+                Add-GlowBlob $g ($w * 0.86) ($h * 0.18) ($w * 0.46) ($h * 0.46) $t.Accent.R $t.Accent.G $t.Accent.B 14
+            }
         }
     } finally {
         $g.Dispose()
@@ -481,6 +688,7 @@ function Load-State {
 
 function New-DefaultSettings {
     return [pscustomobject]@{
+        Theme            = 'Swiss'
         OcrProvider      = 'Auto'
         OcrSpaceKey      = ''
         OcrSpaceLanguage = 'eng'
@@ -574,25 +782,31 @@ function Get-RecentItem {
 }
 
 function Update-ToggleUI {
+    if (-not $script:btnToggle) { return }
+    $t = $script:Theme
     if ($script:capturing) {
         $script:btnToggle.Text      = ([char]0x25CF).ToString() + '  CAPTURING'
-        $script:btnToggle.BackColor = $C_EMERALD
-        $script:btnToggle.ForeColor = $C_INK
-        $script:btnToggle.FlatAppearance.BorderColor = $C_EMERALD_SOFT
-        $script:btnToggle.FlatAppearance.MouseOverBackColor = $C_EMERALD_SOFT
-        $script:btnToggle.FlatAppearance.MouseDownBackColor = [System.Drawing.Color]::FromArgb(16, 185, 129)
+        $script:btnToggle.BackColor = $t.ToggleOnBg
+        $script:btnToggle.ForeColor = $t.ToggleOnText
+        $script:btnToggle.FlatAppearance.BorderColor = $t.ToggleOnBorder
+        $script:btnToggle.FlatAppearance.BorderSize = $t.ButtonBorderWidth
+        $script:btnToggle.FlatAppearance.MouseOverBackColor = $t.BtnPrimaryHover
+        $script:btnToggle.FlatAppearance.MouseDownBackColor = $t.BtnPrimaryDown
         if ($script:timer) { $script:timer.Start() }
         if ($script:notify) { $script:notify.Text = 'Clippr - capturing' }
     } else {
         $script:btnToggle.Text      = ([char]0x25CB).ToString() + '  PAUSED'
-        $script:btnToggle.BackColor = $C_GLASS
-        $script:btnToggle.ForeColor = $C_TEXT
-        $script:btnToggle.FlatAppearance.BorderColor = $C_GLASS_BORDER
-        $script:btnToggle.FlatAppearance.MouseOverBackColor = $C_GLASS_HI
-        $script:btnToggle.FlatAppearance.MouseDownBackColor = $C_PANEL3
+        $script:btnToggle.BackColor = $t.ToggleOffBg
+        $script:btnToggle.ForeColor = $t.ToggleOffText
+        $script:btnToggle.FlatAppearance.BorderColor = $t.ToggleOffBorder
+        $script:btnToggle.FlatAppearance.BorderSize = $t.ButtonBorderWidth
+        $script:btnToggle.FlatAppearance.MouseOverBackColor = $t.BtnSecondaryHover
+        $script:btnToggle.FlatAppearance.MouseDownBackColor = $t.BtnSecondaryDown
         if ($script:timer) { $script:timer.Stop() }
         if ($script:notify) { $script:notify.Text = 'Clippr - paused' }
     }
+    $script:btnToggle.Font = New-Object System.Drawing.Font($t.ButtonFont, 9.5, [System.Drawing.FontStyle]::Bold)
+    Set-RoundedRegion $script:btnToggle $t.ButtonRadius
 }
 
 function Refresh-Tabs {
@@ -646,6 +860,7 @@ function Refresh-Hist {
     }
     if ($restore -ge 0) { $script:histList.SelectedIndex = $restore }
     $script:histList.EndUpdate()
+    try { [void][ClipprNative]::ShowScrollBar($script:histList.Handle, 1, $false) } catch { }
     Set-DarkScrollBars $script:histList
     Update-HistScroll
     if ($script:lblStatus) {
@@ -1295,8 +1510,24 @@ function Open-Settings {
         return $t
     }
 
-    [void](Add-Label 'SETTINGS / STORE' 22 14 400 30 16 $true)
+    [void](Add-Label 'SETTINGS / STORE' 22 14 300 30 16 $true)
     [void](Add-Label 'Bring your own OCR keys. Keys are stored only on this PC (settings.json) and never uploaded.' 24 46 590 20 8 $false $C_MUTED)
+
+    [void](Add-Label 'THEME' 342 17 54 18 8 $true $C_MUTED)
+    $cboTheme = New-Object System.Windows.Forms.ComboBox
+    $cboTheme.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    $cboTheme.Location = New-Object System.Drawing.Point(400, 10)
+    $cboTheme.Size = New-Object System.Drawing.Size(216, 26)
+    $cboTheme.BackColor = $C_PANEL2
+    $cboTheme.ForeColor = $C_TEXT
+    $cboTheme.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    $cboTheme.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+    [void]$cboTheme.Items.AddRange(@('Swiss Paper', 'Midnight Brass', 'Neo-Brutalist', 'Calm Slate'))
+    $themeValues = @('Swiss', 'Brass', 'Brutal', 'Calm')
+    $ti = [Array]::IndexOf($themeValues, [string]$script:settings.Theme)
+    if ($ti -lt 0) { $ti = 0 }
+    $cboTheme.SelectedIndex = $ti
+    $dlg.Controls.Add($cboTheme)
 
     [void](Add-Label 'OCR provider' 24 80 130 22 9 $true)
     $cboProv = New-Object System.Windows.Forms.ComboBox
@@ -1418,6 +1649,7 @@ function Open-Settings {
     $help = Add-Label "Where to get keys:`n- OCR.space: ocr.space/ocrapi (free tier available)`n- Azure: Keys + endpoint from your Computer Vision resource`n- Google: enable the Cloud Vision API and create an API key`n- PaddleOCR: full URL of your server, optional API key + header (Gravitee API Key plan: X-Gravitee-Api-Key), or OAuth2 client credentials.`n`nRequest modes: PaddleHub JSON (images[]), Multipart (file), Gravitee image_url (input[]).`nThe Authenticate button runs the selected provider on a small test image. Keys stay local." 24 790 592 128 8 $false $C_MUTED
 
     $apply = {
+        $script:settings.Theme            = $themeValues[$cboTheme.SelectedIndex]
         $script:settings.OcrProvider      = $provValues[$cboProv.SelectedIndex]
         $script:settings.OcrSpaceKey      = $txtOsKey.Text.Trim()
         $script:settings.OcrSpaceLanguage = $txtOsLang.Text.Trim()
@@ -1440,7 +1672,8 @@ function Open-Settings {
     $btnSave.Add_Click({
         & $apply
         Save-Settings
-        if ($script:lblStatus) { $script:lblStatus.Text = 'Settings saved. OCR provider: ' + $script:settings.OcrProvider }
+        try { Apply-Theme $script:settings.Theme } catch { }
+        if ($script:lblStatus) { $script:lblStatus.Text = 'Settings saved. Theme: ' + $script:Theme.Name + '   |   OCR provider: ' + $script:settings.OcrProvider }
         $dlg.Close()
     })
 
@@ -1679,7 +1912,7 @@ function Open-Preview($item) {
     $pvFooter.Controls.Add($btnPvClose)
 
     $btnPvOcr = New-Object System.Windows.Forms.Button
-    $btnPvOcr.Text = 'RUN OCR'
+    $btnPvOcr.Text = 'OCR + COPY'
     $btnPvOcr.Size = New-Object System.Drawing.Size(104, 34)
     $btnPvOcr.Location = New-Object System.Drawing.Point(($btnPvClose.Left - 10 - 104), 14)
     $btnPvOcr.Anchor = 'Bottom,Right'
@@ -1710,12 +1943,12 @@ function Open-Preview($item) {
         $panelPreview.Visible = (-not $ocrOn)
         if ($ocrOn) {
             $btnTabOcr.BackColor = $C_ACCENT
-            $btnTabOcr.ForeColor = [System.Drawing.Color]::Black
+            $btnTabOcr.ForeColor = $script:Theme.AccentInk
             $btnTabPreview.BackColor = $C_PANEL2
             $btnTabPreview.ForeColor = $C_TEXT
         } else {
             $btnTabPreview.BackColor = $C_ACCENT
-            $btnTabPreview.ForeColor = [System.Drawing.Color]::Black
+            $btnTabPreview.ForeColor = $script:Theme.AccentInk
             $btnTabOcr.BackColor = $C_PANEL2
             $btnTabOcr.ForeColor = $C_TEXT
         }
@@ -1768,15 +2001,19 @@ function Open-Preview($item) {
             if ([string]::IsNullOrWhiteSpace($ocr)) {
                 $lblPvStatus.Text = 'No readable text was found in this image.'
             } else {
-                $txtOcr.Text = ConvertTo-Crlf $ocr
+                $ocrText = ConvertTo-Crlf $ocr
+                $txtOcr.Text = $ocrText
+                $script:lastCaptured = $ocrText
+                [System.Windows.Forms.Clipboard]::SetText($ocrText)
+                $script:ignoreClipboardUntil = (Get-Date).AddSeconds(2)
                 $added = Add-Clip $ocr
                 & $setTab 'ocr'
                 if ($script:ocrNotice) {
-                    $lblPvStatus.Text = $script:ocrNotice
+                    $lblPvStatus.Text = $script:ocrNotice + ' OCR text copied to clipboard.'
                 } elseif ($added) {
-                    $lblPvStatus.Text = "OCR text added to '$($script:captureTab)'."
+                    $lblPvStatus.Text = "OCR text added to '$($script:captureTab)' and copied to clipboard."
                 } else {
-                    $lblPvStatus.Text = 'OCR text already at the top of history.'
+                    $lblPvStatus.Text = 'OCR text already at the top of history. Copied to clipboard.'
                 }
             }
         } catch {
@@ -2013,39 +2250,40 @@ function Set-DarkTitleBar($frm) {
     if (-not $frm) { return }
     try {
         [void]$frm.Handle
-        $one = 1
-        [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 20, [ref]$one, 4) | Out-Null
-        [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 19, [ref]$one, 4) | Out-Null
-        $caption = 0x00170F0B
+        $t = $script:Theme
+        $dark = if ($t.DwmDark) { 1 } else { 0 }
+        [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 20, [ref]$dark, 4) | Out-Null
+        [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 19, [ref]$dark, 4) | Out-Null
+        $caption = [int]$script:ThemeDwmCaption
         [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 35, [ref]$caption, 4) | Out-Null
-        $border = 0x0050401E
+        $border = [int]$script:ThemeDwmBorder
         [ClipprNative]::DwmSetWindowAttribute($frm.Handle, 34, [ref]$border, 4) | Out-Null
     } catch { }
 }
 
 function Style-Button($b, [bool]$primary = $false) {
+    if (-not $b) { return }
+    $t = $script:Theme
     $b.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-    $b.FlatAppearance.BorderSize = 1
-    $b.FlatAppearance.BorderColor = $C_GLASS_BORDER
-    $b.Font = New-Object System.Drawing.Font($C_FONT, 8.5, [System.Drawing.FontStyle]::Bold)
+    $b.FlatAppearance.BorderSize = $t.ButtonBorderWidth
+    $b.Font = New-Object System.Drawing.Font($t.ButtonFont, $t.ButtonFontSize, [System.Drawing.FontStyle]::Bold)
     $b.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
     $b.Cursor = [System.Windows.Forms.Cursors]::Hand
     $b.UseVisualStyleBackColor = $false
     if ($primary) {
-        $b.BackColor = $C_ACCENT
-        $b.ForeColor = $C_INK
-        $b.FlatAppearance.BorderColor = $C_ACCENT_SOFT
-        $b.FlatAppearance.MouseOverBackColor = $C_ACCENT2
-        $b.FlatAppearance.MouseDownBackColor = [System.Drawing.Color]::FromArgb(8, 145, 178)
+        $b.BackColor = $t.BtnPrimaryBg
+        $b.ForeColor = $t.BtnPrimaryText
+        $b.FlatAppearance.BorderColor = $t.BtnPrimaryBorder
+        $b.FlatAppearance.MouseOverBackColor = $t.BtnPrimaryHover
+        $b.FlatAppearance.MouseDownBackColor = $t.BtnPrimaryDown
     } else {
-        $b.BackColor = $C_GLASS
-        $b.ForeColor = $C_TEXT
-        $b.FlatAppearance.BorderColor = $C_GLASS_BORDER
-        $b.FlatAppearance.MouseOverBackColor = $C_GLASS_HI
-        $b.FlatAppearance.MouseDownBackColor = $C_PANEL3
+        $b.BackColor = $t.BtnSecondaryBg
+        $b.ForeColor = $t.BtnSecondaryText
+        $b.FlatAppearance.BorderColor = $t.BtnSecondaryBorder
+        $b.FlatAppearance.MouseOverBackColor = $t.BtnSecondaryHover
+        $b.FlatAppearance.MouseDownBackColor = $t.BtnSecondaryDown
     }
-    Set-RoundedRegion $b 9
-    $b.Add_Resize({ try { Set-RoundedRegion $this 9 } catch { } })
+    Set-RoundedRegion $b $t.ButtonRadius
 }
 
 # ============================================================
@@ -2053,6 +2291,7 @@ function Style-Button($b, [bool]$primary = $false) {
 # ============================================================
 Load-State
 Load-Settings
+Set-ThemePalette ([string]$script:settings.Theme)
 
 # ============================================================
 #  HEADLESS OCR WORKER
@@ -2132,14 +2371,14 @@ $form.Controls.Add($main)
 # history list inside a glass frame
 $listWrap = New-Object System.Windows.Forms.Panel
 $listWrap.Dock = 'Fill'
-$listWrap.BackColor = $C_GLASS_BORDER
-$listWrap.Padding = New-Object System.Windows.Forms.Padding(1, 1, 1, 1)
+$listWrap.BackColor = $script:Theme.ListBorder
+$listWrap.Padding = New-Object System.Windows.Forms.Padding($script:Theme.ListBorderWidth, $script:Theme.ListBorderWidth, $script:Theme.ListBorderWidth, $script:Theme.ListBorderWidth)
 $main.Controls.Add($listWrap)
 
 $script:histList = New-Object FluidListBox
 $script:histList.Dock = 'Fill'
 $script:histList.BorderStyle = [System.Windows.Forms.BorderStyle]::None
-$script:histList.BackColor = $C_PANEL2
+$script:histList.BackColor = $script:Theme.ListBg
 $script:histList.ForeColor = $C_TEXT
 $script:histList.DrawMode = [System.Windows.Forms.DrawMode]::OwnerDrawFixed
 $script:histList.ItemHeight = 76
@@ -2150,7 +2389,7 @@ Set-DarkScrollBars $script:histList
 # slim custom scrollbar drawn over the native (light) one
 $script:histScroll = New-Object BufferedPanel
 $script:histScroll.Width = 17
-$script:histScroll.BackColor = $C_PANEL2
+$script:histScroll.BackColor = $script:Theme.ListBg
 $script:histScroll.Cursor = [System.Windows.Forms.Cursors]::Hand
 $script:histScroll.Visible = $false
 $listWrap.Controls.Add($script:histScroll)
@@ -2163,17 +2402,19 @@ $script:histScroll.Add_Paint({
         if ($bmp) { $g.DrawImageUnscaled($bmp, 0, 0) } else { $g.Clear($C_PANEL2) }
         $m = Get-HistScrollMetrics
         if (-not $m -or $m.Total -le $m.Visible) { return }
+        $t = $script:Theme
+        $trackA = if ($t.IsLight) { 40 } else { 34 }
         $track = Get-RoundedPath 7 2 4 ([single][Math]::Max(4, $s.Height - 4)) 2
-        $tb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(34, 34, 211, 238))
+        $tb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($trackA, $t.Accent.R, $t.Accent.G, $t.Accent.B))
         $g.FillPath($tb, $track)
         $tb.Dispose(); $track.Dispose()
         $ty = [single]($m.ThumbY + 1)
         $th = [single][Math]::Max(10, $m.ThumbH - 2)
         $thumb = Get-RoundedPath 5.5 $ty 6 $th 3
-        $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(190, 34, 211, 238))
+        $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(190, $t.Accent.R, $t.Accent.G, $t.Accent.B))
         $g.FillPath($b, $thumb)
         $b.Dispose()
-        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(80, 226, 232, 240), 1)
+        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(80, $t.Border.R, $t.Border.G, $t.Border.B), 1)
         $g.DrawPath($pen, $thumb)
         $pen.Dispose(); $thumb.Dispose()
     } catch { }
@@ -2228,8 +2469,8 @@ $script:histScroll.Add_MouseWheel({
 $script:histList.Add_TopIndexChanged({ Update-HistScroll })
 $script:histList.Add_Resize({ Update-HistScroll })
 
-Set-RoundedRegion $listWrap 14
-$listWrap.Add_Resize({ try { Set-RoundedRegion $this 14 } catch { }; Update-HistScroll })
+Set-RoundedRegion $listWrap $script:Theme.PanelRadius
+$listWrap.Add_Resize({ try { Set-RoundedRegion $this $script:Theme.PanelRadius } catch { }; Update-HistScroll })
 
 # action bar (bottom)
 $actionBar = New-Object System.Windows.Forms.Panel
@@ -2285,10 +2526,10 @@ $flow.Controls.Add($script:btnClear)
 
 $script:chkStrip = New-Object System.Windows.Forms.CheckBox
 $script:chkStrip.Text = 'Strip images (text only)'
-$script:chkStrip.ForeColor = $C_SUBTLE
+$script:chkStrip.ForeColor = $script:Theme.Muted
 $script:chkStrip.BackColor = [System.Drawing.Color]::Transparent
 $script:chkStrip.AutoSize = $true
-$script:chkStrip.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
+$script:chkStrip.Font = New-Object System.Drawing.Font($script:Theme.Font, 8.5)
 $script:chkStrip.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $script:chkStrip.Checked = $script:stripImages
 $script:chkStrip.Margin = New-Object System.Windows.Forms.Padding(6, 10, 0, 0)
@@ -2304,7 +2545,7 @@ $main.Controls.Add($searchRow)
 $lblSearch = New-Object System.Windows.Forms.Label
 $lblSearch.Text = 'SEARCH'
 $lblSearch.ForeColor = $C_MUTED
-$lblSearch.Font = New-Object System.Drawing.Font($C_FONT, 7.5, [System.Drawing.FontStyle]::Bold)
+$lblSearch.Font = New-Object System.Drawing.Font($script:Theme.LabelFont, 7.5, [System.Drawing.FontStyle]::Bold)
 $lblSearch.AutoSize = $true
 $lblSearch.Location = New-Object System.Drawing.Point(2, 14)
 $searchRow.Controls.Add($lblSearch)
@@ -2312,19 +2553,20 @@ $searchRow.Controls.Add($lblSearch)
 $searchBox = New-Object System.Windows.Forms.Panel
 $searchBox.Location = New-Object System.Drawing.Point(70, 4)
 $searchBox.Size = New-Object System.Drawing.Size(380, 34)
-$searchBox.BackColor = $C_GLASS
+$searchBox.BackColor = $script:Theme.SearchBg
 $searchRow.Controls.Add($searchBox)
-Set-RoundedRegion $searchBox 10
+Set-RoundedRegion $searchBox $script:Theme.SearchRadius
 $searchBox.Add_Paint({
     param($s, $e)
     try {
         $g = $e.Graphics
+        $t = $script:Theme
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(150, 34, 211, 238), 1)
-        $p = Get-RoundedPath 0.5 0.5 ($s.Width - 1) ($s.Height - 1) 9
+        $pen = New-Object System.Drawing.Pen($t.SearchBorder, $t.ButtonBorderWidth)
+        $p = Get-RoundedPath 0.5 0.5 ($s.Width - 1) ($s.Height - 1) $t.SearchRadius
         $g.DrawPath($pen, $p)
         $pen.Dispose(); $p.Dispose()
-        $mp = New-Object System.Drawing.Pen($C_MUTED, 1.3)
+        $mp = New-Object System.Drawing.Pen($t.Muted, 1.3)
         $mp.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
         $mp.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
         $g.DrawEllipse($mp, 12, 11, 8.5, 8.5)
@@ -2336,10 +2578,10 @@ $searchBox.Add_Paint({
 $script:txtSearch = New-Object System.Windows.Forms.TextBox
 $script:txtSearch.Location = New-Object System.Drawing.Point(36, 5)
 $script:txtSearch.Size = New-Object System.Drawing.Size(330, 24)
-$script:txtSearch.BackColor = $C_GLASS
-$script:txtSearch.ForeColor = $C_TEXT
+$script:txtSearch.BackColor = $script:Theme.SearchBg
+$script:txtSearch.ForeColor = $script:Theme.Text
 $script:txtSearch.BorderStyle = [System.Windows.Forms.BorderStyle]::None
-$script:txtSearch.Font = New-Object System.Drawing.Font($C_FONT, 10)
+$script:txtSearch.Font = New-Object System.Drawing.Font($script:Theme.Font, 10)
 $searchBox.Controls.Add($script:txtSearch)
 
 # ---------- SIDEBAR ----------
@@ -2352,17 +2594,13 @@ $sidebar.Add_Paint({
     param($s, $e)
     try {
         $g = $e.Graphics
+        $t = $script:Theme
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $rect = New-Object System.Drawing.Rectangle(0, 0, $s.Width, $s.Height)
-        $bmp = Get-GlassCrop $s
-        if ($bmp) { $g.DrawImageUnscaled($bmp, 0, 0) } else { $g.Clear($C_PANEL) }
-        $tint = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(55, 2, 6, 23))
-        $g.FillRectangle($tint, $rect)
-        $tint.Dispose()
-        $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(22, 226, 232, 240), [System.Drawing.Color]::FromArgb(0, 226, 232, 240), 90)
-        $g.FillRectangle($sheen, $rect)
-        $sheen.Dispose()
-        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(120, 34, 211, 238), 1)
+        $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $t.Sidebar, $t.Sidebar2, 90)
+        $g.FillRectangle($lg, $rect)
+        $lg.Dispose()
+        $pen = New-Object System.Drawing.Pen($t.Border, $t.SidebarBorderWidth)
         $g.DrawLine($pen, ($s.Width - 1), 0, ($s.Width - 1), $s.Height)
         $pen.Dispose()
     } catch { }
@@ -2372,7 +2610,7 @@ $form.Controls.Add($sidebar)
 $script:tabList = New-Object FluidListBox
 $script:tabList.Dock = 'Fill'
 $script:tabList.BorderStyle = [System.Windows.Forms.BorderStyle]::None
-$script:tabList.BackColor = $C_PANEL2
+$script:tabList.BackColor = $script:Theme.Sidebar
 $script:tabList.ForeColor = $C_TEXT
 $script:tabList.DrawMode = [System.Windows.Forms.DrawMode]::OwnerDrawFixed
 $script:tabList.ItemHeight = 44
@@ -2421,7 +2659,7 @@ $lblTabs.UseMnemonic = $false
 $lblTabs.Dock = 'Top'
 $lblTabs.Height = 30
 $lblTabs.ForeColor = $C_MUTED
-$lblTabs.Font = New-Object System.Drawing.Font($C_FONT, 8, [System.Drawing.FontStyle]::Bold)
+$lblTabs.Font = New-Object System.Drawing.Font($script:Theme.LabelFont, 8, [System.Drawing.FontStyle]::Bold)
 $lblTabs.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
 $sidebar.Controls.Add($lblTabs)
 
@@ -2429,21 +2667,24 @@ $sidebar.Controls.Add($lblTabs)
 $statusBar = New-Object System.Windows.Forms.Panel
 $statusBar.Dock = 'Bottom'
 $statusBar.Height = 26
-$statusBar.BackColor = $C_PANEL
+$statusBar.BackColor = $script:Theme.StatusBg
 $form.Controls.Add($statusBar)
 
 $statusLine = New-Object System.Windows.Forms.Panel
 $statusLine.Dock = 'Top'
-$statusLine.Height = 1
-$statusLine.BackColor = $C_GLASS_BORDER
+$statusLine.Height = $script:Theme.StatusLineWidth
+$statusLine.BackColor = $script:Theme.StatusLine
 $statusBar.Controls.Add($statusLine)
 
 $script:lblStatus = New-Object System.Windows.Forms.Label
 $script:lblStatus.Dock = 'Fill'
 $script:lblStatus.Text = ''
-$script:lblStatus.ForeColor = $C_SUBTLE
-$script:lblStatus.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$script:lblStatus.ForeColor = $script:Theme.StatusText
+$__statusFontSize = if ($script:Theme.Key -eq 'Brutal') { 7.0 } else { 8 }
+$script:lblStatus.Font = New-Object System.Drawing.Font($script:Theme.MetaFont, $__statusFontSize)
 $script:lblStatus.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$script:lblStatus.AutoEllipsis = $true
+$script:lblStatus.UseMnemonic = $false
 $script:lblStatus.Padding = New-Object System.Windows.Forms.Padding(14, 0, 0, 0)
 $statusBar.Controls.Add($script:lblStatus)
 
@@ -2451,8 +2692,8 @@ $lblCredit = New-Object System.Windows.Forms.Label
 $lblCredit.Text = 'v1.1'
 $lblCredit.Dock = 'Right'
 $lblCredit.AutoSize = $true
-$lblCredit.ForeColor = $C_SUBTLE
-$lblCredit.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$lblCredit.ForeColor = $script:Theme.StatusText
+$lblCredit.Font = New-Object System.Drawing.Font($script:Theme.MetaFont, 8)
 $lblCredit.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
 $lblCredit.Padding = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
 $statusBar.Controls.Add($lblCredit)
@@ -2472,13 +2713,50 @@ $brand.Add_Paint({
     param($s, $e)
     try {
         $g = $e.Graphics
+        $t = $script:Theme
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        Add-GlowBlob $g 23 23 30 30 52 211 153 70
-        Add-GlowBlob $g 27 19 23 23 167 139 250 55
+        if ($t.HardShadow) {
+            $sh = Get-RoundedPath 3 3 46 46 2
+            $sb = New-Object System.Drawing.SolidBrush($t.CardShadowColor)
+            $g.FillPath($sb, $sh)
+            $sb.Dispose(); $sh.Dispose()
+        } else {
+            Add-GlowBlob $g 23 23 30 30 $t.Accent.R $t.Accent.G $t.Accent.B 40
+            Add-GlowBlob $g 27 19 23 23 $t.Accent2.R $t.Accent2.G $t.Accent2.B 28
+        }
         if ($script:BrandImage) {
             $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-            $g.DrawImage($script:BrandImage, 0, 0, 46, 46)
+            if ($t.LogoMode -eq 'color') {
+                $g.DrawImage($script:BrandImage, 0, 0, 46, 46)
+            } else {
+                $cm = New-Object System.Drawing.Imaging.ColorMatrix
+                $cm.Matrix33 = 1.0; $cm.Matrix44 = 1.0
+                if ($t.LogoMode -eq 'sepia') {
+                    $cm.Matrix00 = 0.393; $cm.Matrix01 = 0.349; $cm.Matrix02 = 0.272
+                    $cm.Matrix10 = 0.769; $cm.Matrix11 = 0.686; $cm.Matrix12 = 0.534
+                    $cm.Matrix20 = 0.189; $cm.Matrix21 = 0.168; $cm.Matrix22 = 0.131
+                } elseif ($t.LogoMode -eq 'contrast') {
+                    $cm.Matrix00 = 0.374; $cm.Matrix01 = 0.374; $cm.Matrix02 = 0.374; $cm.Matrix03 = -0.12
+                    $cm.Matrix10 = 0.734; $cm.Matrix11 = 0.734; $cm.Matrix12 = 0.734; $cm.Matrix13 = -0.12
+                    $cm.Matrix20 = 0.143; $cm.Matrix21 = 0.143; $cm.Matrix22 = 0.143; $cm.Matrix23 = -0.12
+                } else {
+                    $cm.Matrix00 = 0.299; $cm.Matrix01 = 0.299; $cm.Matrix02 = 0.299
+                    $cm.Matrix10 = 0.587; $cm.Matrix11 = 0.587; $cm.Matrix12 = 0.587
+                    $cm.Matrix20 = 0.114; $cm.Matrix21 = 0.114; $cm.Matrix22 = 0.114
+                }
+                $ia = New-Object System.Drawing.Imaging.ImageAttributes
+                $ia.SetColorMatrix($cm)
+                $dest = New-Object System.Drawing.Rectangle(0, 0, 46, 46)
+                $g.DrawImage($script:BrandImage, $dest, 0, 0, $script:BrandImage.Width, $script:BrandImage.Height, [System.Drawing.GraphicsUnit]::Pixel, $ia)
+                $ia.Dispose()
+            }
+            if ($t.HardShadow) {
+                $bp = Get-RoundedPath 1 1 44 44 2
+                $pen = New-Object System.Drawing.Pen($t.Border, 2)
+                $g.DrawPath($pen, $bp)
+                $pen.Dispose(); $bp.Dispose()
+            }
             return
         }
         $cx = 23.0; $cy = 23.0
@@ -2513,27 +2791,34 @@ $header.Add_Paint({
     param($s, $e)
     try {
         $g = $e.Graphics
+        $t = $script:Theme
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-        $fam = New-Object System.Drawing.FontFamily($C_FONT)
-        $txt = 'Clippr'
-        $style = [int]([System.Drawing.FontStyle]::Bold)
+        $fam = New-Object System.Drawing.FontFamily($t.DisplayFont)
+        $txt = if ($t.TitleUppercase) { 'CLIPPR' } else { 'Clippr' }
+        $style = [int]$t.DisplayStyle
         $p = New-Object System.Drawing.Drawing2D.GraphicsPath
-        $p.AddString($txt, $fam, $style, 27, (New-Object System.Drawing.PointF(58, 7)), [System.Drawing.StringFormat]::GenericDefault)
+        $p.AddString($txt, $fam, $style, $t.DisplaySize, (New-Object System.Drawing.PointF(58, $t.TitleY)), [System.Drawing.StringFormat]::GenericDefault)
 
-        $shadow = New-Object System.Drawing.Drawing2D.Matrix
-        $shadow.Translate(0, 2)
-        $sp = $p.Clone()
-        $sp.Transform($shadow)
-        $sb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(120, 2, 6, 23))
-        $g.FillPath($sb, $sp)
-        $sb.Dispose(); $sp.Dispose(); $shadow.Dispose()
+        if ($t.HardShadow) {
+            $shadow = New-Object System.Drawing.Drawing2D.Matrix
+            $shadow.Translate(2, 2)
+            $sp = $p.Clone()
+            $sp.Transform($shadow)
+            $sb = New-Object System.Drawing.SolidBrush($t.CardShadowColor)
+            $g.FillPath($sb, $sp)
+            $sb.Dispose(); $sp.Dispose(); $shadow.Dispose()
+        } elseif (-not $t.IsLight) {
+            $shadow = New-Object System.Drawing.Drawing2D.Matrix
+            $shadow.Translate(0, 1)
+            $sp = $p.Clone()
+            $sp.Transform($shadow)
+            $sb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(110, 0, 0, 0))
+            $g.FillPath($sb, $sp)
+            $sb.Dispose(); $sp.Dispose(); $shadow.Dispose()
+        }
 
-        $halo = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(38, 34, 211, 238), 3)
-        $halo.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-        $g.DrawPath($halo, $p)
-        $halo.Dispose()
-        $br = New-Object System.Drawing.SolidBrush($C_TEXT)
+        $br = New-Object System.Drawing.SolidBrush($t.DisplayColor)
         $g.FillPath($br, $p)
         $br.Dispose()
         $p.Dispose(); $fam.Dispose()
@@ -2541,9 +2826,9 @@ $header.Add_Paint({
 })
 
 $lblSub = New-Object System.Windows.Forms.Label
-$lblSub.Text = 'Friendly Neighborhood Clipboard manager'
-$lblSub.Font = New-Object System.Drawing.Font($C_FONT, 9, [System.Drawing.FontStyle]::Regular)
-$lblSub.ForeColor = $C_MUTED
+$lblSub.Text = $script:Theme.SubText
+$lblSub.Font = New-Object System.Drawing.Font($script:Theme.SubFont, $script:Theme.SubSize, $script:Theme.SubStyle)
+$lblSub.ForeColor = $script:Theme.Muted
 $lblSub.BackColor = [System.Drawing.Color]::Transparent
 $lblSub.AutoSize = $true
 $lblSub.Location = New-Object System.Drawing.Point(59, 52)
@@ -2556,13 +2841,13 @@ $script:btnToggle.Location = New-Object System.Drawing.Point(($form.ClientSize.W
 $script:btnToggle.Anchor = 'Top,Right'
 $script:btnToggle.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $script:btnToggle.FlatAppearance.BorderSize = 1
-$script:btnToggle.FlatAppearance.BorderColor = $C_EMERALD_SOFT
-$script:btnToggle.FlatAppearance.MouseOverBackColor = $C_EMERALD_SOFT
-$script:btnToggle.Font = New-Object System.Drawing.Font($C_FONT, 9.5, [System.Drawing.FontStyle]::Bold)
+$script:btnToggle.FlatAppearance.BorderColor = $script:Theme.ToggleOnBorder
+$script:btnToggle.FlatAppearance.MouseOverBackColor = $script:Theme.BtnPrimaryHover
+$script:btnToggle.Font = New-Object System.Drawing.Font($script:Theme.ButtonFont, 9.5, [System.Drawing.FontStyle]::Bold)
 $script:btnToggle.Cursor = [System.Windows.Forms.Cursors]::Hand
 $script:btnToggle.UseVisualStyleBackColor = $false
 $header.Controls.Add($script:btnToggle)
-Set-RoundedRegion $script:btnToggle 10
+Set-RoundedRegion $script:btnToggle $script:Theme.ButtonRadius
 
 $script:btnSettings = New-Object System.Windows.Forms.Button
 $script:btnSettings.Text = 'SETTINGS'
@@ -2570,21 +2855,21 @@ $script:btnSettings.Size = New-Object System.Drawing.Size(110, 40)
 $script:btnSettings.Location = New-Object System.Drawing.Point(($form.ClientSize.Width - 310), 20)
 $script:btnSettings.Anchor = 'Top,Right'
 Style-Button $script:btnSettings $false
-$script:btnSettings.Font = New-Object System.Drawing.Font($C_FONT, 8.5, [System.Drawing.FontStyle]::Bold)
+$script:btnSettings.Font = New-Object System.Drawing.Font($script:Theme.ButtonFont, 8.5, [System.Drawing.FontStyle]::Bold)
 $header.Controls.Add($script:btnSettings)
 
 $headerLine = New-Object System.Windows.Forms.Panel
 $headerLine.Dock = 'Bottom'
-$headerLine.Height = 1
-$headerLine.BackColor = $C_BORDER
+$headerLine.Height = $script:Theme.HeaderLineWidth
+$headerLine.BackColor = $script:Theme.Border
 $header.Controls.Add($headerLine)
 # ============================================================
 #  DRAWING (owner-draw lists)
 # ============================================================
-$script:fHistItem = New-Object System.Drawing.Font($C_FONT, 10.5)
-$script:fHistMeta = New-Object System.Drawing.Font($C_FONT, 8.25)
-$script:fTabView  = New-Object System.Drawing.Font($C_FONT, 9.5, [System.Drawing.FontStyle]::Bold)
-$script:fTabItem  = New-Object System.Drawing.Font($C_FONT, 9.5)
+$script:fHistItem = New-Object System.Drawing.Font($script:Theme.CardFont, $script:Theme.CardFontSize, $script:Theme.CardFontStyle)
+$script:fHistMeta = New-Object System.Drawing.Font($script:Theme.MetaFont, $script:Theme.MetaFontSize)
+$script:fTabView  = New-Object System.Drawing.Font($script:Theme.TabFont, $script:Theme.TabFontSize, [System.Drawing.FontStyle]::Bold)
+$script:fTabItem  = New-Object System.Drawing.Font($script:Theme.TabFont, $script:Theme.TabFontSize, [System.Drawing.FontStyle]::Regular)
 $script:histHover = -1
 $script:tabHover  = -1
 
@@ -2593,6 +2878,7 @@ $script:histList.Add_DrawItem({
     if ($e.Index -lt 0) { return }
     $item = $sender.Items[$e.Index]
     $g = $e.Graphics
+    $t = $script:Theme
     $isSel = ($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0
     $isHover = ($e.Index -eq $script:histHover)
 
@@ -2603,53 +2889,51 @@ $script:histList.Add_DrawItem({
         if ($glass) {
             $gsrc = New-Object System.Drawing.Rectangle($e.Bounds.X, $e.Bounds.Y, $e.Bounds.Width, $e.Bounds.Height)
             $g.DrawImage($glass, $e.Bounds, $gsrc, [System.Drawing.GraphicsUnit]::Pixel)
+        } else {
+            $g.Clear($t.ListBg)
         }
-        $card = New-Object System.Drawing.RectangleF(($e.Bounds.X + 2), ($e.Bounds.Y + 4), ($e.Bounds.Width - 12), ($e.Bounds.Height - 10))
+
+        $card = New-Object System.Drawing.RectangleF(($e.Bounds.X + 2), ($e.Bounds.Y + 3), ($e.Bounds.Width - 16), ($e.Bounds.Height - 13))
         if ($card.Width -lt 8 -or $card.Height -lt 8) { return }
 
-        # soft lift
-        $sp = Get-RoundedPath ($card.X + 1) ($card.Y + 2) $card.Width $card.Height 12
-        $sbr = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(58, 2, 6, 23))
-        $g.FillPath($sbr, $sp)
-        $sbr.Dispose(); $sp.Dispose()
+        if ($t.HardShadow) {
+            $sc = if ($isSel) { $t.Accent } else { $t.CardShadowColor }
+            $sp = Get-RoundedPath ($card.X + $t.CardShadowOffset) ($card.Y + $t.CardShadowOffset) $card.Width $card.Height $t.CardRadius
+            $sbr = New-Object System.Drawing.SolidBrush($sc)
+            $g.FillPath($sbr, $sp)
+            $sbr.Dispose(); $sp.Dispose()
+        } else {
+            $sp = Get-RoundedPath ($card.X + 1) ($card.Y + 2) $card.Width $card.Height $t.CardRadius
+            $sbr = New-Object System.Drawing.SolidBrush($t.CardShadowColor)
+            $g.FillPath($sbr, $sp)
+            $sbr.Dispose(); $sp.Dispose()
+        }
 
-        $path = Get-RoundedPath $card.X $card.Y $card.Width $card.Height 12
-        $fill = if ($isSel) { $C_CARD_SEL } elseif ($isHover) { $C_CARD_HI } else { $C_CARD }
+        $path = Get-RoundedPath $card.X $card.Y $card.Width $card.Height $t.CardRadius
+        $fill = if ($isSel) { $t.CardSel } elseif ($isHover) { $t.CardHi } else { $t.Card }
         $b = New-Object System.Drawing.SolidBrush($fill)
         $g.FillPath($b, $path)
         $b.Dispose()
-        $borderCol = if ($isSel) { [System.Drawing.Color]::FromArgb(220, 34, 211, 238) } elseif ($isHover) { [System.Drawing.Color]::FromArgb(130, 103, 232, 249) } else { [System.Drawing.Color]::FromArgb(78, 103, 232, 249) }
-        $bw = 1.0
-        $pen = New-Object System.Drawing.Pen($borderCol, $bw)
+
+        $borderCol = if ($isSel) { $t.CardSelBorder } elseif ($isHover) { $t.CardHoverBorder } else { $t.CardBorder }
+        $pen = New-Object System.Drawing.Pen($borderCol, $t.CardBorderWidth)
         $g.DrawPath($pen, $path)
         $pen.Dispose()
         $path.Dispose()
 
-        # glass highlight line
-        if (-not $isSel) {
-            $hi = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(38, 226, 232, 240), 1)
-            $g.DrawLine($hi, [single]($card.X + 14), [single]($card.Y + 1), [single]($card.Right - 14), [single]($card.Y + 1))
+        if (-not $t.HardShadow) {
+            $hi = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(30, 255, 255, 255), 1)
+            $g.DrawLine($hi, [single]($card.X + 10), [single]($card.Y + 1), [single]($card.Right - 10), [single]($card.Y + 1))
             $hi.Dispose()
         }
 
-        # minimal type spine
-        $spineBase = if ($item.Type -eq 'image') { $C_VIOLET } else { $C_ACCENT }
-        $spineA = if ($isSel) { 235 } else { 155 }
+        $spineBase = if ($item.Type -eq 'image') { $t.Accent2 } else { $t.Accent }
+        $spineA = if ($isSel) { 255 } else { [int](255 * $t.CardBarOpacity) }
         $spineColor = [System.Drawing.Color]::FromArgb($spineA, $spineBase.R, $spineBase.G, $spineBase.B)
-        $spine = Get-RoundedPath ($card.X + 3) ($card.Y + 10) 2.5 ($card.Height - 20) 1.5
+        $spine = Get-RoundedPath ($card.X + 3) ($card.Y + 10) $t.CardBarWidth ($card.Height - 20) ($t.CardBarWidth / 2)
         $spb = New-Object System.Drawing.SolidBrush($spineColor)
         $g.FillPath($spb, $spine)
         $spb.Dispose(); $spine.Dispose()
-
-        if ($isSel) {
-            # single quiet status dot
-            $glow = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(45, 34, 211, 238))
-            $g.FillEllipse($glow, [single]($card.Right - 27), [single]($card.Y + 10), 17, 17)
-            $glow.Dispose()
-            $dot = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(225, 34, 211, 238))
-            $g.FillEllipse($dot, [single]($card.Right - 21), [single]($card.Y + 16), 5, 5)
-            $dot.Dispose()
-        }
 
         $textLeft = [single]($card.X + 18)
         $meta = [string]$item.Time
@@ -2658,9 +2942,9 @@ $script:histList.Add_DrawItem({
             if ($thumb) {
                 $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
                 $g.DrawImage($thumb, [int]($card.X + 16), [int]($card.Y + 12), 46, 46)
-                $ringCol = if ($isSel) { [System.Drawing.Color]::FromArgb(210, 34, 211, 238) } else { [System.Drawing.Color]::FromArgb(90, 148, 163, 184) }
+                $ringCol = if ($isSel) { $t.Accent } else { $t.CardBorder }
                 $ring = New-Object System.Drawing.Pen($ringCol, 1)
-                $rp = Get-RoundedPath ($card.X + 16) ($card.Y + 12) 46 46 8
+                $rp = Get-RoundedPath ($card.X + 16) ($card.Y + 12) 46 46 ([Math]::Max(0, $t.CardRadius - 1))
                 $g.DrawPath($ring, $rp)
                 $ring.Dispose(); $rp.Dispose()
             }
@@ -2675,36 +2959,28 @@ $script:histList.Add_DrawItem({
             $preview = $preview.Trim()
         }
 
-        $tb = New-Object System.Drawing.SolidBrush($C_TEXT)
+        $tb = New-Object System.Drawing.SolidBrush($t.Text)
         $sf = New-Object System.Drawing.StringFormat
         $sf.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
         $sf.FormatFlags = [System.Drawing.StringFormatFlags]::NoWrap
         $tw = [single]($card.Right - $textLeft - 26)
         if ($tw -lt 10) { $tw = 10 }
         $g.DrawString($preview, $script:fHistItem, $tb, (New-Object System.Drawing.RectangleF($textLeft, ($card.Y + 12), $tw, 22)), $sf)
-        $mb = New-Object System.Drawing.SolidBrush($(if ($isSel) { $C_ACCENT_SOFT } else { $C_MUTED }))
+        $mb = New-Object System.Drawing.SolidBrush($(if ($isSel) { $t.Text } else { $t.Muted }))
         $g.DrawString($meta, $script:fHistMeta, $mb, [single]$textLeft, [single]($card.Y + 43))
         $mb.Dispose(); $tb.Dispose(); $sf.Dispose()
 
-        # minimal outlined type tag
         $tag = if ($item.Type -eq 'image') { 'IMG' } else { 'TXT' }
-        $tagFont = New-Object System.Drawing.Font($C_FONT, 7, [System.Drawing.FontStyle]::Bold)
-        $tagW = [single]($g.MeasureString($tag, $tagFont).Width + 12)
+        $tagFont = New-Object System.Drawing.Font($t.Font, 7, [System.Drawing.FontStyle]::Bold)
+        $tagW = [single]($g.MeasureString($tag, $tagFont).Width + 14)
         $tagRect = New-Object System.Drawing.RectangleF(($card.Right - $tagW - 12), ($card.Y + $card.Height - 25), $tagW, 16)
-        $tagPath = Get-RoundedPath $tagRect.X $tagRect.Y $tagRect.Width $tagRect.Height 4
-        if ($item.Type -eq 'image') {
-            $tagFill = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(40, 167, 139, 250))
-            $tagPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(125, 167, 139, 250), 1)
-            $tagText = $C_VIOLET_SOFT
-        } else {
-            $tagFill = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(34, 34, 211, 238))
-            $tagPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(110, 34, 211, 238), 1)
-            $tagText = $C_ACCENT_SOFT
-        }
+        $tagPath = Get-RoundedPath $tagRect.X $tagRect.Y $tagRect.Width $tagRect.Height $t.TagRadius
+        $tagFill = New-Object System.Drawing.SolidBrush($t.TagBg)
+        $tagPen = New-Object System.Drawing.Pen($t.TagBorder, $t.TagBorderWidth)
         $g.FillPath($tagFill, $tagPath)
         $g.DrawPath($tagPen, $tagPath)
         $tagFill.Dispose(); $tagPen.Dispose(); $tagPath.Dispose()
-        $tfg = New-Object System.Drawing.SolidBrush($tagText)
+        $tfg = New-Object System.Drawing.SolidBrush($t.TagText)
         $tsf = New-Object System.Drawing.StringFormat
         $tsf.Alignment = [System.Drawing.StringAlignment]::Center
         $tsf.LineAlignment = [System.Drawing.StringAlignment]::Center
@@ -2712,11 +2988,11 @@ $script:histList.Add_DrawItem({
         $tfg.Dispose(); $tsf.Dispose(); $tagFont.Dispose()
     } catch { }
 })
-
 $script:tabList.Add_DrawItem({
     param($sender, $e)
     if ($e.Index -lt 0) { return }
     $g = $e.Graphics
+    $t = $script:Theme
     $isSel = ($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0
     $isHover = ($e.Index -eq $script:tabHover)
 
@@ -2727,42 +3003,51 @@ $script:tabList.Add_DrawItem({
         if ($glass) {
             $gsrc = New-Object System.Drawing.Rectangle($e.Bounds.X, $e.Bounds.Y, $e.Bounds.Width, $e.Bounds.Height)
             $g.DrawImage($glass, $e.Bounds, $gsrc, [System.Drawing.GraphicsUnit]::Pixel)
+        } else {
+            $g.Clear($t.Sidebar)
         }
         $pill = New-Object System.Drawing.RectangleF(($e.Bounds.X + 1), ($e.Bounds.Y + 4), ($e.Bounds.Width - 8), ($e.Bounds.Height - 8))
         if ($pill.Width -lt 8 -or $pill.Height -lt 8) { return }
 
         if ($isSel -or $isHover) {
-            $p = Get-RoundedPath $pill.X $pill.Y $pill.Width $pill.Height 9
-            $b = New-Object System.Drawing.SolidBrush($(if ($isSel) { $C_CARD_SEL } else { $C_CARD_HI }))
+            if ($isSel -and $t.HardShadow) {
+                $sp = Get-RoundedPath ($pill.X + 3) ($pill.Y + 3) $pill.Width $pill.Height $t.ButtonRadius
+                $sb = New-Object System.Drawing.SolidBrush($t.Accent)
+                $g.FillPath($sb, $sp)
+                $sb.Dispose(); $sp.Dispose()
+            }
+            $p = Get-RoundedPath $pill.X $pill.Y $pill.Width $pill.Height $t.ButtonRadius
+            $b = New-Object System.Drawing.SolidBrush($(if ($isSel) { $t.TabSelBg } else { $t.TabHoverBg }))
             $g.FillPath($b, $p)
             $b.Dispose()
-            $bCol = if ($isSel) { [System.Drawing.Color]::FromArgb(205, 34, 211, 238) } else { [System.Drawing.Color]::FromArgb(85, 148, 163, 184) }
-            $pen = New-Object System.Drawing.Pen($bCol, 1)
+            $bCol = if ($isSel) { $t.TabSelBorder } else { $t.Border }
+            $pen = New-Object System.Drawing.Pen($bCol, $t.TabBorderWidth)
             $g.DrawPath($pen, $p)
             $pen.Dispose(); $p.Dispose()
         }
 
-        $txt = [string]$sender.Items[$e.Index]
-        $isView = Test-ViewTab $txt
+        $raw = [string]$sender.Items[$e.Index]
+        $isView = Test-ViewTab $raw
+        $txt = if ($t.TabUppercase) { $raw.ToUpper() } else { $raw }
         if ($e.Index -eq @($script:viewTabs).Count) {
-            $dv = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(90, 34, 211, 238), 1)
+            $dv = New-Object System.Drawing.Pen($t.Border, 1)
             $g.DrawLine($dv, $e.Bounds.X + 10, $e.Bounds.Y + 1, $e.Bounds.Right - 14, $e.Bounds.Y + 1)
             $dv.Dispose()
         }
         $f = if ($isView) { $script:fTabView } else { $script:fTabItem }
-        $tColor = if ($isSel) { $C_TEXT } elseif ($isView) { $C_ACCENT_SOFT } else { $C_TEXT }
+        $tColor = if ($isSel) { $t.TabSelText } else { $t.TabText }
         $dotX = [single]($pill.X + 13)
         $dotY = [single]($pill.Y + ($pill.Height - 5) / 2)
         if ($isSel) {
-            $db = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(240, 226, 232, 240))
+            $db = New-Object System.Drawing.SolidBrush($t.TabSelDot)
             $g.FillEllipse($db, $dotX, $dotY, 5, 5)
             $db.Dispose()
         } elseif ($isView) {
-            $db = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(190, 34, 211, 238))
+            $db = New-Object System.Drawing.SolidBrush($t.Accent)
             $g.FillEllipse($db, $dotX, $dotY, 5, 5)
             $db.Dispose()
         } else {
-            $dp = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(150, 148, 163, 184), 1)
+            $dp = New-Object System.Drawing.Pen($t.Muted, 1)
             $g.DrawEllipse($dp, $dotX, $dotY, 4, 4)
             $dp.Dispose()
         }
@@ -3096,13 +3381,7 @@ $form.Add_Load({
     try {
         [ClipprNative]::ShowWindow($form.Handle, 5) | Out-Null
         [ClipprNative]::SetForegroundWindow($form.Handle) | Out-Null
-        $one = 1
-        [ClipprNative]::DwmSetWindowAttribute($form.Handle, 20, [ref]$one, 4) | Out-Null
-        [ClipprNative]::DwmSetWindowAttribute($form.Handle, 19, [ref]$one, 4) | Out-Null
-        $caption = 0x00170F0B
-        [ClipprNative]::DwmSetWindowAttribute($form.Handle, 35, [ref]$caption, 4) | Out-Null
-        $border = 0x0050401E
-        [ClipprNative]::DwmSetWindowAttribute($form.Handle, 34, [ref]$border, 4) | Out-Null
+        Set-DarkTitleBar $form
     } catch { }
 })
 
@@ -3122,6 +3401,144 @@ $form.Add_FormClosing({
         Save-State
     }
 })
+
+$script:form = $form
+$script:main = $main
+$script:sidebar = $sidebar
+$script:header = $header
+$script:brand = $brand
+$script:listWrap = $listWrap
+$script:searchBox = $searchBox
+$script:statusBar = $statusBar
+$script:statusLine = $statusLine
+$script:headerLine = $headerLine
+$script:lblSearch = $lblSearch
+$script:lblTabs = $lblTabs
+$script:lblSub = $lblSub
+$script:lblCredit = $lblCredit
+$script:btnNewTab = $btnNewTab
+$script:btnRenTab = $btnRenTab
+$script:btnDelTab = $btnDelTab
+
+function Apply-Theme([string]$key) {
+    Set-ThemePalette $key
+    $t = $script:Theme
+    if ($script:settings) { $script:settings.Theme = $t.Key }
+
+    try {
+        foreach ($k in @($script:glassCache.Keys)) {
+            $v = $script:glassCache[$k]
+            if ($v -and $v.Bmp) { $v.Bmp.Dispose() }
+        }
+    } catch { }
+    $script:glassCache = @{}
+
+    try {
+        if ($form.BackgroundImage) { $form.BackgroundImage.Dispose() }
+        $form.BackgroundImage = New-GlassBackground $form.ClientSize.Width $form.ClientSize.Height
+        $form.BackgroundImageLayout = [System.Windows.Forms.ImageLayout]::Stretch
+        $form.BackColor = $t.Bg
+        $form.ForeColor = $t.Text
+        $form.Font = New-Object System.Drawing.Font($t.Font, 9)
+    } catch { }
+
+    if ($script:listWrap) {
+        $script:listWrap.BackColor = $t.ListBorder
+        $script:listWrap.Padding = New-Object System.Windows.Forms.Padding($t.ListBorderWidth, $t.ListBorderWidth, $t.ListBorderWidth, $t.ListBorderWidth)
+        Set-RoundedRegion $script:listWrap $t.PanelRadius
+    }
+    if ($script:histList) {
+        $script:histList.BackColor = $t.ListBg
+        $script:histList.ForeColor = $t.Text
+    }
+    if ($script:histScroll) { $script:histScroll.BackColor = $t.ListBg }
+    if ($script:tabList) {
+        $script:tabList.BackColor = $t.Sidebar
+        $script:tabList.ForeColor = $t.Text
+    }
+
+    if ($script:searchBox) {
+        $script:searchBox.BackColor = $t.SearchBg
+        Set-RoundedRegion $script:searchBox $t.SearchRadius
+        $script:searchBox.Invalidate()
+    }
+    if ($script:txtSearch) {
+        $script:txtSearch.BackColor = $t.SearchBg
+        $script:txtSearch.ForeColor = $t.Text
+        $script:txtSearch.Font = New-Object System.Drawing.Font($t.Font, 10)
+    }
+    if ($script:lblSearch) {
+        $script:lblSearch.ForeColor = $t.Muted
+        $script:lblSearch.Font = New-Object System.Drawing.Font($t.LabelFont, 7.5, [System.Drawing.FontStyle]::Bold)
+    }
+    if ($script:lblTabs) {
+        $script:lblTabs.ForeColor = $t.Muted
+        $script:lblTabs.Font = New-Object System.Drawing.Font($t.LabelFont, 8, [System.Drawing.FontStyle]::Bold)
+    }
+
+    if ($script:statusBar) { $script:statusBar.BackColor = $t.StatusBg }
+    if ($script:statusLine) {
+        $script:statusLine.Height = $t.StatusLineWidth
+        $script:statusLine.BackColor = $t.StatusLine
+    }
+    if ($script:lblStatus) {
+        $script:lblStatus.ForeColor = $t.StatusText
+        $statusPx = if ($t.Key -eq 'Brutal') { 7.0 } else { 8 }
+        $script:lblStatus.Font = New-Object System.Drawing.Font($t.MetaFont, $statusPx)
+        $script:lblStatus.AutoEllipsis = $true
+        $script:lblStatus.UseMnemonic = $false
+    }
+    if ($script:lblCredit) {
+        $script:lblCredit.ForeColor = $t.StatusText
+        $creditPx = if ($t.Key -eq 'Brutal') { 7.5 } else { 8 }
+        $script:lblCredit.Font = New-Object System.Drawing.Font($t.MetaFont, $creditPx)
+    }
+
+    if ($script:headerLine) {
+        $script:headerLine.Height = $t.HeaderLineWidth
+        $script:headerLine.BackColor = $t.Border
+    }
+    if ($script:lblSub) {
+        $script:lblSub.Text = $t.SubText
+        $script:lblSub.Font = New-Object System.Drawing.Font($t.SubFont, $t.SubSize, $t.SubStyle)
+        $script:lblSub.ForeColor = $t.Muted
+    }
+
+    $script:fHistItem = New-Object System.Drawing.Font($t.CardFont, $t.CardFontSize, $t.CardFontStyle)
+    $script:fHistMeta = New-Object System.Drawing.Font($t.MetaFont, $t.MetaFontSize)
+    $script:fTabView  = New-Object System.Drawing.Font($t.TabFont, $t.TabFontSize, [System.Drawing.FontStyle]::Bold)
+    $script:fTabItem  = New-Object System.Drawing.Font($t.TabFont, $t.TabFontSize, [System.Drawing.FontStyle]::Regular)
+
+    Style-Button $script:btnCopy $true
+    Style-Button $script:btnView $false
+    Style-Button $script:btnCapture $false
+    Style-Button $script:btnOcr $false
+    Style-Button $script:btnDelete $false
+    Style-Button $script:btnClear $false
+    Style-Button $script:btnSettings $false
+    if ($script:btnNewTab) { Style-Button $script:btnNewTab $false }
+    if ($script:btnRenTab) { Style-Button $script:btnRenTab $false }
+    if ($script:btnDelTab) { Style-Button $script:btnDelTab $false }
+    if ($script:btnSettings) { $script:btnSettings.Font = New-Object System.Drawing.Font($t.ButtonFont, 8.5, [System.Drawing.FontStyle]::Bold) }
+
+    if ($script:chkStrip) {
+        $script:chkStrip.ForeColor = $t.Muted
+        $script:chkStrip.Font = New-Object System.Drawing.Font($t.Font, 8.5)
+    }
+    Update-ToggleUI
+
+    try { $script:sidebar.Invalidate() } catch { }
+    try { $script:header.Invalidate() } catch { }
+    try { $script:brand.Invalidate() } catch { }
+    try { $script:main.Invalidate() } catch { }
+    try { $script:histList.Invalidate() } catch { }
+    try { $script:tabList.Invalidate() } catch { }
+    try { $script:form.Invalidate($true) } catch { }
+    Set-DarkTitleBar $script:form
+    Refresh-Hist
+    try { $script:tabList.Invalidate() } catch { }
+    try { Update-HistScroll } catch { }
+}
 
 # ============================================================
 #  GO
