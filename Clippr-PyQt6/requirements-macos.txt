@@ -1,0 +1,3 @@
+-r requirements.txt
+pyobjc-framework-Vision>=9.2
+pyobjc-framework-Quartz>=9.2

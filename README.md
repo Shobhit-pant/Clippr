@@ -6,6 +6,8 @@
 
 Clippr is a lightweight Windows clipboard manager with saved tabs, image capture, a preview window, and OCR. It is a single PowerShell + WinForms app with four switchable themes and no external runtime dependencies.
 
+**Cross-platform edition:** a Python + PyQt6 version lives in [`Clippr-PyQt6/`](Clippr-PyQt6/README.md) and runs on macOS, Windows, and Linux.
+
 ## First, the duplicate-image fix: "Strip images (text only)"
 
 Copying a cell range or formatted selection from **Excel** can place **both plain text and an image representation** on the Windows clipboard. Clippr would then save the same copy twice: once as text and once as a redundant image card. The **Strip images (text only)** option was added for exactly that problem. When the clipboard contains both text and an image, Clippr keeps the text, removes the image half, and leaves the history clean and searchable.

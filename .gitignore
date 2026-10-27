@@ -16,6 +16,7 @@ autoname-*.txt
 # Screenshots and test captures (keep the app mascot)
 *.png
 !clippr.png
+!Clippr-PyQt6/assets/clippr.png
 screenshots/
 test-images/
 
@@ -26,3 +27,11 @@ test-images/
 .env
 .env.*
 secrets*
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+build/
+dist/
+*.spec
+.DS_Store
