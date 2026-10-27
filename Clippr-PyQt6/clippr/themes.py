@@ -213,6 +213,26 @@ def build_qss(t: Theme) -> str:
         color: {t.on_accent};
         border-color: {t.accent};
     }}
+    QPushButton#TopCapture {{
+        background: transparent;
+        color: #C8432F;
+        border: 2px solid #C8432F;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 8.5pt;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+    }}
+    QPushButton#TopCapture:hover {{
+        background: #C8432F;
+        color: #FFFFFF;
+        border-color: #C8432F;
+    }}
+    QPushButton#TopCapture:pressed {{
+        background: #A93626;
+        border-color: #A93626;
+        color: #FFFFFF;
+    }}
     QPushButton[role="primary"]:hover {{
         background: {t.accent};
         border-color: {t.text};
