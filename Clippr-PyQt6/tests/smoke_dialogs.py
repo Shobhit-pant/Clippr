@@ -30,7 +30,7 @@ d = ImageDraw.Draw(img)
 font = ImageFont.truetype("arial.ttf", 38)
 d.text((50, 80), "Clippr OCR preview", fill="#1a1815", font=font)
 d.text((50, 150), "Invoice total: 4,820.00", fill="#1a1815", font=font)
-d.text((50, 220), "Shipment: Mumbai → Chennai", fill="#1a1815", font=font)
+d.text((50, 220), "Shipment: Mumbai -> Chennai", fill="#1a1815", font=font)
 p = DATA / "invoice.png"
 img.save(p)
 
@@ -52,7 +52,7 @@ win.list.setCurrentIndex(win.model.index(win.model.row_of(image_item.id), 0))
 app.processEvents()
 win.grab().save(str(OUT / "history-image-selected.png"))
 
-dlg = PreviewDialog(store, image_item, win.watcher, win.theme, win)
+dlg = PreviewDialog(store, image_item, win.watcher, win.theme, win.settings, win)
 dlg.show()
 app.processEvents()
 dlg.grab().save(str(OUT / "preview.png"))

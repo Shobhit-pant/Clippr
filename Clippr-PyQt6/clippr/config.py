@@ -11,7 +11,7 @@ from pathlib import Path
 
 APP_NAME = "Clippr"
 APP_SLUG = "ClipprPy"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 def app_data_dir() -> Path:
@@ -55,6 +55,24 @@ class Settings:
     start_at_login: bool = False
     window_geometry: str = ""
     splitter_sizes: list[int] = field(default_factory=list)
+
+    # OCR configuration (keys stay in the local settings.json)
+    ocr_provider: str = "auto"          # auto, builtin, ocrspace, azure, google, paddle
+    ocr_builtin_engine: str = "auto"    # auto, windows, macos, tesseract
+    ocr_space_key: str = ""
+    ocr_space_language: str = "eng"
+    azure_endpoint: str = ""
+    azure_key: str = ""
+    google_key: str = ""
+    paddle_endpoint: str = ""
+    paddle_key: str = ""
+    paddle_key_header: str = "Authorization"
+    paddle_mode: str = "hub"            # hub, multipart, image_url
+    paddle_token_url: str = ""
+    paddle_client_id: str = ""
+    paddle_client_secret: str = ""
+    paddle_scope: str = ""
+    ocr_auto_name_images: bool = False
 
     @classmethod
     def load(cls, path: Path) -> "Settings":

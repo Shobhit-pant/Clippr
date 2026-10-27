@@ -47,6 +47,7 @@ class MainWindow(QMainWindow):
         self.theme = theme(theme_key)
         self._allow_close = False
         self._worker: OcrWorker | None = None
+        self._auto_workers: set[OcrWorker] = set()
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(280)
@@ -353,6 +354,8 @@ class MainWindow(QMainWindow):
         self._select_after_refresh = item.id
         self.refresh_tabs()
         self.refresh_history(keep_selection=False)
+        if item.kind == "image" and self.settings.ocr_auto_name_images:
+            self._auto_name_image(item)
         self._status("Clipboard captured. New clips go to '" + self.store.target_tab() + "'.")
 
     def _default_status(self) -> None:
@@ -388,7 +391,7 @@ class MainWindow(QMainWindow):
         item = self.current_item()
         if item is None:
             return
-        dlg = PreviewDialog(self.store, item, self.watcher, self.theme, self)
+        dlg = PreviewDialog(self.store, item, self.watcher, self.theme, self.settings, self)
         dlg.item_updated.connect(self._preview_updated)
         dlg.exec()
         self.refresh_history()
@@ -414,6 +417,8 @@ class MainWindow(QMainWindow):
             item = self.store.items[0] if self.store.items else None
         if item is not None:
             self.watcher.copy_item(item)
+            if self.settings.ocr_auto_name_images:
+                self._auto_name_image(item)
         self.refresh_tabs()
         self.refresh_history()
         self._status("Screen region captured and copied.")
@@ -428,11 +433,16 @@ class MainWindow(QMainWindow):
             self._status("Image file is missing.")
             return
         self.btn_ocr.setEnabled(False)
-        self._status("Reading text from image…", 0)
-        self._worker = OcrWorker(path)
+        self._status("Reading text from image...", 0)
+        self._ocr_notice = ""
+        self._worker = OcrWorker(path, self.settings)
+        self._worker.notice.connect(self._ocr_notice_received)
         self._worker.recognized.connect(lambda text, item_id=item.id: self._ocr_done(item_id, text))
         self._worker.failed.connect(self._ocr_failed)
         self._worker.start()
+
+    def _ocr_notice_received(self, notice: str) -> None:
+        self._ocr_notice = notice
 
     def _ocr_done(self, item_id: str, text: str) -> None:
         self.update_actions()
@@ -443,12 +453,42 @@ class MainWindow(QMainWindow):
         self.watcher.copy_text(text)
         self._schedule_save()
         self.refresh_history()
-        self._status(f"OCR text copied ({len(text)} characters).")
+        prefix = (getattr(self, "_ocr_notice", "") + " ") if getattr(self, "_ocr_notice", "") else ""
+        self._status(prefix + f"OCR text copied ({len(text)} characters).", 9000)
 
     def _ocr_failed(self, message: str) -> None:
         self.update_actions()
         self._status("OCR failed.")
         QMessageBox.warning(self, "OCR unavailable", message)
+    def _auto_name_image(self, item: HistoryItem) -> None:
+        path = self.store.image_path(item)
+        if path is None:
+            return
+        worker = OcrWorker(path, self.settings)
+        self._auto_workers.add(worker)
+        worker.recognized.connect(lambda text, item_id=item.id: self._auto_name_done(item_id, text))
+        worker.failed.connect(lambda _msg: None)
+        worker.finished.connect(lambda w=worker: self._auto_workers.discard(w))
+        worker.start()
+
+    def _auto_name_done(self, item_id: str, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        item = self.store.get(item_id)
+        if item is None:
+            return
+        if not item.ocr_text:
+            item.ocr_text = text
+        if not item.text.strip():
+            first = text.splitlines()[0] if text.splitlines() else text
+            item.text = " ".join(first.split())[:90]
+            self._schedule_save()
+            self.refresh_history()
+            self._status("Image auto-named from OCR.")
+        else:
+            self._schedule_save()
+
 
     def delete_selected(self) -> None:
         item = self.current_item()

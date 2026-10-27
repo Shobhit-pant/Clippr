@@ -47,7 +47,7 @@ def main() -> int:
     settings = Settings()
     watcher = ClipboardWatcher(store, lambda: settings)
     try:
-        dlg = PreviewDialog(store, item, watcher, theme("swiss"))
+        dlg = PreviewDialog(store, item, watcher, theme("swiss"), settings)
         dlg.show()
         app.processEvents()
         dlg._ocr()

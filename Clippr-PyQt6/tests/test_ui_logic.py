@@ -54,6 +54,11 @@ def main() -> int:
     pump(app, 100)
     assert win.model.rowCount() == 1, win.model.rowCount()
 
+    image_item = next(i for i in store.items if i.kind == "image")
+    win._auto_name_done(image_item.id, "Invoice total 4820\nSecond line")
+    assert image_item.text == "Invoice total 4820", image_item.text
+    print("PASS auto-name first OCR line")
+
     win.toggle_capture()
     assert settings.capture_paused is True
     assert "PAUSED" in win.btn_capture.text()

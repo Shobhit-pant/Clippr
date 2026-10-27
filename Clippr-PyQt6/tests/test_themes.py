@@ -1,4 +1,4 @@
-﻿"""Theme and settings round-trip tests."""
+"""Theme and settings round-trip tests."""
 from __future__ import annotations
 
 import shutil
@@ -30,12 +30,15 @@ class ThemeTests(unittest.TestCase):
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True)
         p = d / "settings.json"
-        s = Settings(theme="calm", strip_images=False, history_limit=123)
+        s = Settings(theme="calm", strip_images=False, history_limit=123, ocr_provider="paddle", paddle_mode="multipart", ocr_space_key="dummy")
         s.save(p)
         loaded = Settings.load(p)
         self.assertEqual(loaded.theme, "calm")
         self.assertFalse(loaded.strip_images)
         self.assertEqual(loaded.history_limit, 123)
+        self.assertEqual(loaded.ocr_provider, "paddle")
+        self.assertEqual(loaded.paddle_mode, "multipart")
+        self.assertEqual(loaded.ocr_space_key, "dummy")
         shutil.rmtree(d, ignore_errors=True)
 
 

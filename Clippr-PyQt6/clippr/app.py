@@ -183,7 +183,7 @@ class ClipprApp:
             f"A friendly neighborhood clipboard manager.\n"
             f"Python + PyQt6 · {platform_name()}\n\n"
             f"Data: {self.data_dir}\n"
-            "OCR: Windows.Media.Ocr / Apple Vision / Tesseract",
+            "OCR: built-in / OCR.space / Azure / Google / PaddleOCR",
         )
 
     def quit(self) -> None:

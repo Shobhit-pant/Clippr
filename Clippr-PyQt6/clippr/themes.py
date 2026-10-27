@@ -1,4 +1,4 @@
-﻿"""Theme definitions and Qt stylesheets for Clippr PyQt6."""
+"""Theme definitions and Qt stylesheets for Clippr PyQt6."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -366,5 +366,74 @@ def build_qss(t: Theme) -> str:
         background: {t.card};
         border: {bw}px solid {t.border};
         border-radius: {cr}px;
+    }}
+
+    QTabWidget::pane {{
+        background: {t.surface};
+        border: {bw}px solid {t.border};
+        border-radius: {cr}px;
+        top: -1px;
+    }}
+    QTabBar::tab {{
+        background: transparent;
+        color: {t.muted};
+        padding: 8px 16px;
+        margin-right: 4px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        font-weight: 600;
+    }}
+    QTabBar::tab:selected {{
+        color: {t.text};
+        border-bottom-color: {t.accent};
+    }}
+    QTabBar::tab:hover {{
+        color: {t.text};
+    }}
+    QComboBox {{
+        background: {t.surface};
+        color: {t.text};
+        border: {bw}px solid {t.border};
+        border-radius: {btn_radius}px;
+        padding: 6px 10px;
+        min-height: 22px;
+    }}
+    QComboBox:focus {{
+        border-color: {t.accent};
+    }}
+    QComboBox::drop-down {{
+        border: 0;
+        width: 22px;
+    }}
+    QComboBox QAbstractItemView {{
+        background: {t.surface};
+        color: {t.text};
+        border: {bw}px solid {t.border};
+        selection-background-color: {t.selection};
+        selection-color: {t.text};
+        outline: 0;
+    }}
+    QGroupBox {{
+        border: {bw}px solid {t.border};
+        border-radius: {btn_radius}px;
+        margin-top: 13px;
+        padding: 12px 10px 8px 10px;
+        font-weight: 600;
+        background: transparent;
+    }}
+    QGroupBox::title {{
+        subcontrol-origin: margin;
+        subcontrol-position: top left;
+        left: 10px;
+        padding: 0 5px;
+        color: {t.text};
+        background: {t.surface};
+    }}
+    QScrollArea {{
+        background: transparent;
+        border: 0;
+    }}
+    QScrollArea > QWidget > QWidget {{
+        background: transparent;
     }}
     """
