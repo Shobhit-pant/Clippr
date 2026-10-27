@@ -99,7 +99,7 @@ class RegionCapture(QWidget):
             f.setWeight(QFont.Weight.DemiBold)
             p.setFont(f)
             p.setPen(QColor("#FFFFFF"))
-            p.drawText(self.rect().adjusted(0, -40, 0, -40), Qt.AlignmentFlag.AlignCenter, "Drag to capture a region   ·   Esc to cancel")
+            p.drawText(self.rect().adjusted(0, -40, 0, -40), Qt.AlignmentFlag.AlignCenter, "Drag to create a snip   ·   Esc to cancel")
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:

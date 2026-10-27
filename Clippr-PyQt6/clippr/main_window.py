@@ -118,10 +118,10 @@ class MainWindow(QMainWindow):
         titles.addWidget(subtitle)
         h.addLayout(titles)
         h.addSpacing(6)
-        self.btn_top_capture = QPushButton("CAPTURE")
+        self.btn_top_capture = QPushButton("NEW SNIP")
         self.btn_top_capture.setObjectName("TopCapture")
         self.btn_top_capture.setMinimumWidth(104)
-        self.btn_top_capture.setToolTip("Capture a screen region (Ctrl+Shift+S)")
+        self.btn_top_capture.setToolTip("Create a new snip (Ctrl+Shift+S)")
         self.btn_top_capture.clicked.connect(self.capture_region)
         h.addWidget(self.btn_top_capture)
         h.addStretch(1)
@@ -212,11 +212,10 @@ class MainWindow(QMainWindow):
         a.setSpacing(7)
         self.btn_copy = self._action_button("COPY", self.copy_selected, "primary")
         self.btn_preview = self._action_button("PREVIEW", self.preview_selected)
-        self.btn_capture_region = self._action_button("CAPTURE", self.capture_region)
         self.btn_ocr = self._action_button("OCR", self.ocr_selected)
         self.btn_delete = self._action_button("DELETE", self.delete_selected, "danger")
         self.btn_clear = self._action_button("CLEAR", self.clear_view, "danger")
-        for b in (self.btn_copy, self.btn_preview, self.btn_capture_region, self.btn_ocr, self.btn_delete, self.btn_clear):
+        for b in (self.btn_copy, self.btn_preview, self.btn_ocr, self.btn_delete, self.btn_clear):
             a.addWidget(b)
         a.addStretch(1)
         self.chk_strip = QCheckBox("Strip images (text only)")
@@ -411,13 +410,13 @@ class MainWindow(QMainWindow):
         try:
             image = capture_screen_region(self.theme, self)
         except Exception as exc:
-            QMessageBox.warning(self, "Screen capture", f"Could not start screen capture:\n{exc}")
+            QMessageBox.warning(self, "New Snip", f"Could not create a snip:\n{exc}")
             return
         if image is None or image.isNull():
             return
         png = image_to_png(image)
         if not png:
-            QMessageBox.warning(self, "Screen capture", "The captured image could not be encoded.")
+            QMessageBox.warning(self, "New Snip", "The snip could not be encoded.")
             return
         item = self.store.add_image(png, image.width(), image.height())
         if item is None:
@@ -428,7 +427,7 @@ class MainWindow(QMainWindow):
                 self._auto_name_image(item)
         self.refresh_tabs()
         self.refresh_history()
-        self._status("Screen region captured and copied.")
+        self._status("Snip captured and copied.")
         self._schedule_save()
 
     def ocr_selected(self) -> None:

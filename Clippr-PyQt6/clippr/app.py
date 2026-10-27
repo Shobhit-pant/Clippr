@@ -96,7 +96,7 @@ class ClipprApp:
         menu = QMenu()
         open_action = QAction("Open Clippr", menu)
         open_action.triggered.connect(self._show)
-        capture_action = QAction("Capture screen region…", menu)
+        capture_action = QAction("New Snip…", menu)
         capture_action.triggered.connect(self._capture)
         self._tray_pause = QAction("Pause capture", menu)
         self._tray_pause.setCheckable(True)

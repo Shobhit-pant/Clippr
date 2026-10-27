@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
     QDialog,
     QFormLayout,
     QFrame,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -33,7 +32,6 @@ from .config import Settings, open_path
 from .ocr import ENGINES, ENGINE_LABELS, PROVIDERS, PROVIDER_LABELS, OcrWorker, make_test_image
 from .store import HistoryItem, HistoryStore
 from .themes import THEMES, Theme, theme
-from .widgets import ThemeCard
 
 
 class TextPromptDialog(QDialog):
@@ -228,7 +226,6 @@ class SettingsDialog(QDialog):
         self.store = store
         self.data_dir = data_dir
         self.current_theme = current_theme
-        self._cards: dict[str, ThemeCard] = {}
         self._secrets: list[QLineEdit] = []
         self._test_worker: OcrWorker | None = None
         self._test_path: Path | None = None
@@ -290,16 +287,20 @@ class SettingsDialog(QDialog):
         lbl = QLabel("THEME")
         lbl.setObjectName("SectionLabel")
         root.addWidget(lbl)
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(10)
-        keys = ["swiss", "brass", "brutal", "calm"]
-        for n, key in enumerate(keys):
-            card = ThemeCard(theme(key), key == self.current_theme)
-            card.clicked.connect(self._theme_clicked)
-            self._cards[key] = card
-            grid.addWidget(card, n // 2, n % 2)
-        root.addLayout(grid)
+        theme_row = QHBoxLayout()
+        self.theme_combo = QComboBox()
+        for key, th in THEMES.items():
+            self.theme_combo.addItem(th.name, key)
+        idx = self.theme_combo.findData(self.current_theme)
+        if idx < 0:
+            idx = 0
+        self.theme_combo.setCurrentIndex(idx)
+        self.current_theme = self.theme_combo.currentData() or self.current_theme
+        self.theme_combo.currentIndexChanged.connect(self._theme_selected)
+        theme_row.addWidget(self.theme_combo, 1)
+        root.addLayout(theme_row)
+        self.theme_desc = self._hint(theme(self.current_theme).description)
+        root.addWidget(self.theme_desc)
 
         strip = QCheckBox("Strip images from clipboard (keep text only)")
         strip.setChecked(self.settings.strip_images)
@@ -468,13 +469,20 @@ class SettingsDialog(QDialog):
         combo.setCurrentIndex(idx if idx >= 0 else 0)
 
     # --------------------------------------------------------------- actions
-    def _theme_clicked(self, key: str) -> None:
+    def _theme_selected(self, _index: int) -> None:
+        key = self.theme_combo.currentData()
+        if not key:
+            return
         self.current_theme = key
-        for k, card in self._cards.items():
-            card.set_selected(k == key)
         self.settings.theme = key
+        self.theme_desc.setText(theme(key).description)
         self.theme_changed.emit(key)
         self.update()
+
+    def _select_theme(self, key: str) -> None:
+        idx = self.theme_combo.findData(key)
+        if idx >= 0:
+            self.theme_combo.setCurrentIndex(idx)
 
     def _strip_toggled(self, value: bool) -> None:
         self.settings.strip_images = bool(value)

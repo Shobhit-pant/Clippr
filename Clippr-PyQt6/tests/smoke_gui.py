@@ -63,7 +63,7 @@ app.processEvents()
 time.sleep(0.15)
 app.processEvents()
 
-for key in ("swiss", "brass", "brutal", "calm"):
+for key in ("swiss", "brass", "brutal", "calm", "forest", "rose", "ember", "mono"):
     win.apply_theme(key, save=False)
     app.processEvents()
     time.sleep(0.05)

@@ -11,7 +11,7 @@ from pathlib import Path
 
 APP_NAME = "Clippr"
 APP_SLUG = "ClipprPy"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 
 def app_data_dir() -> Path:

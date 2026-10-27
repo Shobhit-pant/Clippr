@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,89 @@ THEMES: dict[str, Theme] = {
         is_light=True,
         on_accent="#FFFFFF",
     ),
+    "forest": Theme(
+        key="forest",
+        name="Forest Ink",
+        description="Deep evergreen with moss and warm wood.",
+        bg="#0E1712",
+        surface="#15221A",
+        surface2="#1B2D22",
+        card="#192A20",
+        card_alt="#21372A",
+        border="#334C3B",
+        text="#EAF4EC",
+        muted="#94AA9C",
+        accent="#7BC48A",
+        accent2="#D6A45B",
+        selection="#223B2C",
+        tag_bg="#23382A",
+        tag_text="#A8DDB3",
+        is_light=False,
+        on_accent="#0E1712",
+    ),
+    "rose": Theme(
+        key="rose",
+        name="Rose Quartz",
+        description="Soft blush, ink, and a violet edge.",
+        bg="#F7ECEF",
+        surface="#FFF8FA",
+        surface2="#F3E2E7",
+        card="#FFFDFE",
+        card_alt="#FDF1F4",
+        border="#E3C3CC",
+        text="#3A1E26",
+        muted="#8C6874",
+        accent="#C04A6A",
+        accent2="#7C6BC4",
+        selection="#F6DDE4",
+        tag_bg="#F7E2E8",
+        tag_text="#A53B5A",
+        is_light=True,
+        on_accent="#FFFFFF",
+    ),
+    "ember": Theme(
+        key="ember",
+        name="Sunset Ember",
+        description="Charcoal evening with ember and brass.",
+        bg="#1B1210",
+        surface="#241A16",
+        surface2="#2C211C",
+        card="#2A1D18",
+        card_alt="#35251E",
+        border="#4A3329",
+        text="#F6E8DC",
+        muted="#B79A88",
+        accent="#F07A3E",
+        accent2="#E0B25A",
+        selection="#3B241A",
+        tag_bg="#3B261B",
+        tag_text="#F5A36F",
+        is_light=False,
+        on_accent="#1B1210",
+    ),
+    "mono": Theme(
+        key="mono",
+        name="Mono Terminal",
+        description="Black glass, crisp type, mint signal.",
+        bg="#0B0D0E",
+        surface="#121619",
+        surface2="#171D20",
+        card="#151C1F",
+        card_alt="#1C2529",
+        border="#2E3B40",
+        text="#DCE6E8",
+        muted="#7F9298",
+        accent="#50E3C2",
+        accent2="#8FA6AD",
+        selection="#16302C",
+        tag_bg="#16302C",
+        tag_text="#50E3C2",
+        is_light=False,
+        on_accent="#07110F",
+        radius=6,
+        card_radius=4,
+        mono=True,
+    ),
 }
 
 DEFAULT_THEME = "swiss"
@@ -134,6 +218,7 @@ def build_qss(t: Theme) -> str:
     bw = t.border_width
     card_hover = t.card_alt
     btn_radius = max(2, r - 4)
+    arrow = (Path(__file__).resolve().parent.parent / "assets" / ("chevron-dark.png" if t.is_light else "chevron-light.png")).as_posix()
     return f"""
     * {{
         outline: 0;
@@ -423,7 +508,12 @@ def build_qss(t: Theme) -> str:
     }}
     QComboBox::drop-down {{
         border: 0;
-        width: 22px;
+        width: 30px;
+    }}
+    QComboBox::down-arrow {{
+        image: url("{arrow}");
+        width: 10px;
+        height: 7px;
     }}
     QComboBox QAbstractItemView {{
         background: {t.surface};

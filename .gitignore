@@ -17,6 +17,7 @@ autoname-*.txt
 *.png
 !clippr.png
 !Clippr-PyQt6/assets/clippr.png
+!Clippr-PyQt6/assets/chevron-*.png
 screenshots/
 test-images/
 

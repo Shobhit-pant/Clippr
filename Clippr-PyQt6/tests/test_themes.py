@@ -16,7 +16,7 @@ from clippr.themes import DEFAULT_THEME, THEMES, build_qss, theme  # noqa: E402
 
 class ThemeTests(unittest.TestCase):
     def test_four_named_themes(self) -> None:
-        self.assertEqual(set(THEMES), {"swiss", "brass", "brutal", "calm"})
+        self.assertEqual(set(THEMES), {"swiss", "brass", "brutal", "calm", "forest", "rose", "ember", "mono"})
         self.assertEqual(theme("nope").key, DEFAULT_THEME)
         for key, t in THEMES.items():
             qss = build_qss(t)

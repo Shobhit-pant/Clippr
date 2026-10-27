@@ -1,7 +1,7 @@
 # Clippr — Python + PyQt6
 
 A cross-platform clipboard manager with saved tabs, image history, preview,
-screen-region capture, OCR, strip-images, four themes, and a tray icon.
+screen-region capture, OCR, strip-images, eight themes, and a tray icon.
 
 This is the Python/PyQt6 edition of Clippr. It runs on **macOS, Windows and
 Linux** from the same codebase. The original PowerShell + WinForms edition
@@ -20,7 +20,8 @@ remains in the repository root and is Windows-only.
   OCR.space, Azure AI Vision, Google Cloud Vision, and PaddleOCR/self-hosted
   servers with API-key or OAuth2 authentication.
 - **Auto-name new images from OCR** (optional; uses the selected provider).
-- **Four themes**: Swiss Paper, Midnight Brass, Neo-Brutalist, Calm Slate.
+- **Eight themes**: Swiss Paper, Midnight Brass, Neo-Brutalist, Calm Slate,
+  Forest Ink, Rose Quartz, Sunset Ember, and Mono Terminal.
 - **System tray** with reopen, capture, pause, settings and quit.
 - **Start at login** (Windows Run key, macOS LaunchAgent, Linux autostart).
 - **Single instance**, JSON persistence, history limits, image pruning.
@@ -80,7 +81,7 @@ python3 -m pip install pytesseract
 | Shortcut | Action |
 |---|---|
 | `Ctrl/Cmd + F` | Focus search |
-| `Ctrl/Cmd + Shift + S` | Capture a screen region |
+| `Ctrl/Cmd + Shift + S` | Create a new snip (screen region) |
 | `Delete` (list focused) | Delete selected item |
 | `Enter` / double-click | Preview selected item |
 
@@ -175,7 +176,7 @@ python tests/test_ocr_config.py      # provider resolution, parsers, fallback
 python tests/test_settings_ocr.py    # OCR settings tab + Authenticate
 python tests/test_clipboard.py       # saves/restores the real clipboard
 python tests/test_ocr_preview.py     # Windows/macOS OCR + clipboard restore
-python tests/smoke_gui.py            # renders all four themes
+python tests/smoke_gui.py            # renders all eight themes
 python tests/smoke_dialogs.py        # preview + settings dialogs
 python tests/smoke_app.py            # tray, toast, persistence
 ```
