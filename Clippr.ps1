@@ -16,6 +16,7 @@ public static class ClipprNative {
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
     [DllImport("uxtheme.dll", CharSet=CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string pszSubIdList);
     [DllImport("user32.dll")] public static extern bool ShowScrollBar(IntPtr hWnd, int wBar, bool bShow);
+    [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
     [DllImport("uxtheme.dll", EntryPoint="#135")] public static extern int SetPreferredAppMode(int appMode);
     [DllImport("uxtheme.dll", EntryPoint="#136")] public static extern void FlushMenuThemes();
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
@@ -37,7 +38,93 @@ public static class ClipprNative {
 Add-Type -ReferencedAssemblies ([System.Windows.Forms.Form].Assembly.Location), ([System.Drawing.Color].Assembly.Location) -TypeDefinition @"
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+
+// Small, theme-aware toast that always uses the current Clippr artwork.
+// (The Windows balloon API stamps the PowerShell host icon on the toast,
+// which is why the old green icon kept showing up.)
+public class ClipprToast : Form {
+    public Image Art;
+    public string Headline = "Clippr";
+    public string Body = "Still running in the tray.";
+    public string Hint = "Click to reopen";
+    public Color CardColor = Color.White;
+    public Color BorderColor = Color.Gray;
+    public Color TextColor = Color.Black;
+    public Color MutedColor = Color.Gray;
+    public Color AccentColor = Color.Black;
+
+    public ClipprToast() {
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        StartPosition = FormStartPosition.Manual;
+        TopMost = true;
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        Size = new Size(348, 96);
+    }
+
+    protected override bool ShowWithoutActivation { get { return true; } }
+
+    protected override CreateParams CreateParams {
+        get {
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+            cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
+            return cp;
+        }
+    }
+
+    public static GraphicsPath RoundRect(Rectangle r, int radius) {
+        GraphicsPath p = new GraphicsPath();
+        int d = radius * 2;
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
+    }
+
+    protected override void OnResize(EventArgs e) {
+        base.OnResize(e);
+        using (GraphicsPath p = RoundRect(new Rectangle(0, 0, Width, Height), 14)) {
+            Region = new Region(p);
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e) {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+        using (GraphicsPath p = RoundRect(r, 14)) {
+            using (SolidBrush b = new SolidBrush(CardColor)) g.FillPath(b, p);
+            using (Pen pen = new Pen(BorderColor, 1f)) g.DrawPath(pen, p);
+        }
+        // slim accent spine
+        using (GraphicsPath sp = RoundRect(new Rectangle(7, 20, 3, Height - 40), 1)) {
+            using (SolidBrush sb = new SolidBrush(AccentColor)) g.FillPath(sb, sp);
+        }
+        if (Art != null) {
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.DrawImage(Art, new Rectangle(18, 24, 48, 48));
+        }
+        using (Font f1 = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold)) {
+            using (SolidBrush tb = new SolidBrush(TextColor)) {
+                g.DrawString(Headline, f1, tb, 80, 21);
+            }
+        }
+        using (Font f2 = new Font("Segoe UI", 8.75f)) {
+            using (SolidBrush mb = new SolidBrush(MutedColor)) {
+                g.DrawString(Body, f2, mb, 80, 45);
+                g.DrawString(Hint, f2, mb, 80, 66);
+            }
+        }
+    }
+}
 
 // ListBox with smooth, eased mouse-wheel scrolling and flicker-free owner drawing.
 public class FluidListBox : ListBox {
@@ -46,12 +133,16 @@ public class FluidListBox : ListBox {
 
     public FluidListBox() {
         DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         anim = new Timer();
-        anim.Interval = 15;
+        anim.Interval = 12;
         anim.Tick += (s, e) => {
-            if (TopIndex == target) { anim.Stop(); return; }
-            int step = target > TopIndex ? 1 : -1;
-            int next = TopIndex + step;
+            int remaining = target - TopIndex;
+            if (remaining == 0) { anim.Stop(); return; }
+            // Glide one row at a time for short hops; cap long jumps at two
+            // rows so fast wheels never look like a teleport.
+            int step = Math.Max(1, Math.Min(2, (int)Math.Ceiling(Math.Abs(remaining) / 4.0)));
+            int next = TopIndex + Math.Sign(remaining) * step;
             if (next < 0) next = 0;
             if (next > Items.Count - 1) next = Items.Count - 1;
             TopIndex = next;
@@ -59,9 +150,14 @@ public class FluidListBox : ListBox {
         };
     }
 
+    public void StopScrollAnimation() {
+        anim.Stop();
+        target = TopIndex;
+    }
+
     protected override void OnMouseWheel(MouseEventArgs e) {
         int h = Math.Max(1, ItemHeight);
-        int visible = Math.Max(1, ClientSize.Height / h - 1);
+        int visible = Math.Max(1, (int)Math.Floor(ClientSize.Height / (double)h));
         int maxTop = Math.Max(0, Items.Count - visible);
         int start = anim.Enabled ? target : TopIndex;
         int t = start - Math.Sign(e.Delta) * 3;
@@ -436,7 +532,8 @@ function Get-GlassCrop([System.Windows.Forms.Control]$ctrl) {
             $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, $bg, $bg2, 90)
             $gg.FillRectangle($lg, $rect)
             $lg.Dispose()
-            $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb(16, 255, 255, 255), [System.Drawing.Color]::FromArgb(0, 255, 255, 255), 90)
+            $sheenA = if ($isTabs) { 7 } else { 14 }
+            $sheen = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rect, [System.Drawing.Color]::FromArgb($sheenA, 255, 255, 255), [System.Drawing.Color]::FromArgb(0, 255, 255, 255), 90)
             $gg.FillRectangle($sheen, $rect)
             $sheen.Dispose()
         } finally {
@@ -459,7 +556,7 @@ function Get-HistScrollMetrics {
     $thumbH = $trackH
     if ($total -gt 0) {
         $ratio = [Math]::Min(1.0, $vis / [double]$total)
-        $thumbH = [Math]::Max(30.0, $trackH * $ratio)
+        $thumbH = [Math]::Max(24.0, $trackH * $ratio)
     }
     if ($thumbH -gt $trackH) { $thumbH = $trackH }
     $pos = 0.0
@@ -473,19 +570,33 @@ function Update-HistScroll {
     if (-not $script:histScroll -or -not $script:histList) { return }
     try {
         $list = $script:histList
-        $x = $list.Left + $list.Width - 17
+        $x = $list.Left + $list.Width - 16
         $y = $list.Top
         $bh = [Math]::Max(10, $list.Height)
-        $script:histScroll.Bounds = New-Object System.Drawing.Rectangle($x, $y, 17, $bh)
-        $script:histScroll.BringToFront()
-        try { [void][ClipprNative]::ShowScrollBar($list.Handle, 1, $false) } catch { }
+        $key = "$($list.Left)|$($list.Top)|$($list.Width)|$($list.Height)"
+        if ($script:scrollLayoutKey -ne $key) {
+            $script:histScroll.Bounds = New-Object System.Drawing.Rectangle($x, $y, 16, $bh)
+            $script:histScroll.BringToFront()
+            try { [void][ClipprNative]::ShowScrollBar($list.Handle, 1, $false) } catch { }
+            $script:scrollLayoutKey = $key
+        }
         $m = Get-HistScrollMetrics
         if (-not $m -or $m.Total -le $m.Visible -or $m.Total -le 0) {
             $script:histScroll.Visible = $false
             return
         }
-        $script:histScroll.Visible = $true
-        $script:histScroll.Invalidate()
+        if (-not $script:histScroll.Visible) {
+            $script:histScroll.Visible = $true
+            $script:histScroll.BringToFront()
+        }
+        # Async repaint while the wheel animates: a synchronous Refresh pumps
+        # paint messages and makes neighbouring glass panels blink. While the
+        # thumb is being dragged we do want the immediate lock-step paint.
+        if ($script:scrollDrag) {
+            $script:histScroll.Refresh()
+        } else {
+            $script:histScroll.Invalidate()
+        }
     } catch { }
 }
 
@@ -628,6 +739,8 @@ $script:autoNameStarted = [datetime]::MinValue
 $script:glassCache   = @{}
 $script:scrollDrag   = $false
 $script:scrollGrab   = 0
+$script:scrollHover  = $false
+$script:scrollLayoutKey = ''
 
 # ---------- functions ----------
 function Save-State {
@@ -2388,7 +2501,7 @@ Set-DarkScrollBars $script:histList
 
 # slim custom scrollbar drawn over the native (light) one
 $script:histScroll = New-Object BufferedPanel
-$script:histScroll.Width = 17
+$script:histScroll.Width = 16
 $script:histScroll.BackColor = $script:Theme.ListBg
 $script:histScroll.Cursor = [System.Windows.Forms.Cursors]::Hand
 $script:histScroll.Visible = $false
@@ -2399,35 +2512,36 @@ $script:histScroll.Add_Paint({
         $g = $e.Graphics
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $bmp = Get-GlassCrop $s
-        if ($bmp) { $g.DrawImageUnscaled($bmp, 0, 0) } else { $g.Clear($C_PANEL2) }
+        if ($bmp) { $g.DrawImageUnscaled($bmp, 0, 0) } else { $g.Clear($script:Theme.ListBg) }
         $m = Get-HistScrollMetrics
         if (-not $m -or $m.Total -le $m.Visible) { return }
         $t = $script:Theme
-        $trackA = if ($t.IsLight) { 40 } else { 34 }
-        $track = Get-RoundedPath 7 2 4 ([single][Math]::Max(4, $s.Height - 4)) 2
+        $trackA = if ($t.IsLight) { 26 } else { 32 }
+        $track = Get-RoundedPath 7 3 2 ([single][Math]::Max(4, $s.Height - 6)) 1
         $tb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($trackA, $t.Accent.R, $t.Accent.G, $t.Accent.B))
         $g.FillPath($tb, $track)
         $tb.Dispose(); $track.Dispose()
-        $ty = [single]($m.ThumbY + 1)
-        $th = [single][Math]::Max(10, $m.ThumbH - 2)
-        $thumb = Get-RoundedPath 5.5 $ty 6 $th 3
-        $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(190, $t.Accent.R, $t.Accent.G, $t.Accent.B))
+        $ty = [single]($m.ThumbY + 2)
+        $th = [single][Math]::Max(18, $m.ThumbH - 4)
+        $thumb = Get-RoundedPath 5.5 $ty 5 $th 2.5
+        $thumbA = if ($script:scrollDrag) { 245 } elseif ($script:scrollHover) { 215 } elseif ($t.IsLight) { 165 } else { 200 }
+        $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($thumbA, $t.Accent.R, $t.Accent.G, $t.Accent.B))
         $g.FillPath($b, $thumb)
-        $b.Dispose()
-        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(80, $t.Border.R, $t.Border.G, $t.Border.B), 1)
-        $g.DrawPath($pen, $thumb)
-        $pen.Dispose(); $thumb.Dispose()
+        $b.Dispose(); $thumb.Dispose()
     } catch { }
 })
 $script:histScroll.Add_MouseDown({
     param($s, $e)
     if ($e.Button -ne [System.Windows.Forms.MouseButtons]::Left) { return }
+    $script:histList.StopScrollAnimation()
     $m = Get-HistScrollMetrics
     if (-not $m -or $m.MaxTop -le 0) { return }
     if ($e.Y -ge $m.ThumbY -and $e.Y -le ($m.ThumbY + $m.ThumbH)) {
         $script:scrollDrag = $true
+        $script:scrollHover = $true
         $script:scrollGrab = $e.Y - $m.ThumbY
         $s.Capture = $true
+        $s.Refresh()
     } else {
         $span = [Math]::Max(1, $m.TrackH - $m.ThumbH)
         $ratio = ($e.Y - ($m.ThumbH / 2)) / [double]$span
@@ -2453,12 +2567,23 @@ $script:histScroll.Add_MouseUp({
     param($s, $e)
     $script:scrollDrag = $false
     $s.Capture = $false
-    Update-HistScroll
+    $s.Refresh()
+})
+$script:histScroll.Add_MouseEnter({
+    $script:scrollHover = $true
+    try { $script:histScroll.Refresh() } catch { }
+})
+$script:histScroll.Add_MouseLeave({
+    if (-not $script:scrollDrag) {
+        $script:scrollHover = $false
+        try { $script:histScroll.Refresh() } catch { }
+    }
 })
 $script:histScroll.Add_MouseWheel({
     param($s, $e)
     $m = Get-HistScrollMetrics
     if (-not $m) { return }
+    $script:histList.StopScrollAnimation()
     $d = if ($e.Delta -gt 0) { -3 } else { 3 }
     $n = $script:histList.TopIndex + $d
     if ($n -lt 0) { $n = 0 }
@@ -2870,6 +2995,7 @@ $script:fHistItem = New-Object System.Drawing.Font($script:Theme.CardFont, $scri
 $script:fHistMeta = New-Object System.Drawing.Font($script:Theme.MetaFont, $script:Theme.MetaFontSize)
 $script:fTabView  = New-Object System.Drawing.Font($script:Theme.TabFont, $script:Theme.TabFontSize, [System.Drawing.FontStyle]::Bold)
 $script:fTabItem  = New-Object System.Drawing.Font($script:Theme.TabFont, $script:Theme.TabFontSize, [System.Drawing.FontStyle]::Regular)
+$script:fTag      = New-Object System.Drawing.Font($script:Theme.Font, 7, [System.Drawing.FontStyle]::Bold)
 $script:histHover = -1
 $script:tabHover  = -1
 
@@ -2922,7 +3048,7 @@ $script:histList.Add_DrawItem({
         $path.Dispose()
 
         if (-not $t.HardShadow) {
-            $hi = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(30, 255, 255, 255), 1)
+            $hi = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(18, 255, 255, 255), 1)
             $g.DrawLine($hi, [single]($card.X + 10), [single]($card.Y + 1), [single]($card.Right - 10), [single]($card.Y + 1))
             $hi.Dispose()
         }
@@ -2971,7 +3097,8 @@ $script:histList.Add_DrawItem({
         $mb.Dispose(); $tb.Dispose(); $sf.Dispose()
 
         $tag = if ($item.Type -eq 'image') { 'IMG' } else { 'TXT' }
-        $tagFont = New-Object System.Drawing.Font($t.Font, 7, [System.Drawing.FontStyle]::Bold)
+        $tagFont = $script:fTag
+        if (-not $tagFont) { $tagFont = New-Object System.Drawing.Font($t.Font, 7, [System.Drawing.FontStyle]::Bold) }
         $tagW = [single]($g.MeasureString($tag, $tagFont).Width + 14)
         $tagRect = New-Object System.Drawing.RectangleF(($card.Right - $tagW - 12), ($card.Y + $card.Height - 25), $tagW, 16)
         $tagPath = Get-RoundedPath $tagRect.X $tagRect.Y $tagRect.Width $tagRect.Height $t.TagRadius
@@ -2985,7 +3112,7 @@ $script:histList.Add_DrawItem({
         $tsf.Alignment = [System.Drawing.StringAlignment]::Center
         $tsf.LineAlignment = [System.Drawing.StringAlignment]::Center
         $g.DrawString($tag, $tagFont, $tfg, $tagRect, $tsf)
-        $tfg.Dispose(); $tsf.Dispose(); $tagFont.Dispose()
+        $tfg.Dispose(); $tsf.Dispose()
     } catch { }
 })
 $script:tabList.Add_DrawItem({
@@ -3308,14 +3435,121 @@ $script:nameTimer.Add_Tick({
 # ============================================================
 #  TRAY + FORM LIFECYCLE
 # ============================================================
+function New-BrandIconPair([int]$size = 32) {
+    if (-not $script:BrandImage) { return $null }
+    $bmp = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    try {
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        try {
+            $g.Clear([System.Drawing.Color]::Transparent)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+            $g.DrawImage($script:BrandImage, 0, 0, $size, $size)
+        } finally { $g.Dispose() }
+        $h = $bmp.GetHicon()
+        $ico = [System.Drawing.Icon]::FromHandle($h)
+        return [pscustomobject]@{ Icon = $ico; HIcon = $h }
+    } finally { $bmp.Dispose() }
+}
+
 $script:notify = New-Object System.Windows.Forms.NotifyIcon
-if ($script:AppIcon) {
-    try { $script:notify.Icon = New-Object System.Drawing.Icon($script:IconPath, 16, 16) } catch { $script:notify.Icon = [System.Drawing.SystemIcons]::Application }
-} else {
-    $script:notify.Icon = [System.Drawing.SystemIcons]::Application
+$script:notifyIcon = $null
+$script:notifyHIcon = [IntPtr]::Zero
+try {
+    $pair = New-BrandIconPair 32
+    if ($pair) {
+        # The tray/balloon icon is built from the PNG master so it always
+        # follows the current artwork instead of a stale icon cache.
+        $script:notifyIcon = $pair.Icon
+        $script:notifyHIcon = $pair.HIcon
+        $script:notify.Icon = $script:notifyIcon
+    } elseif ($script:AppIcon) {
+        $script:notifyIcon = New-Object System.Drawing.Icon($script:IconPath, 16, 16)
+        $script:notify.Icon = $script:notifyIcon
+    } else {
+        $script:notify.Icon = [System.Drawing.SystemIcons]::Application
+    }
+} catch {
+    try { $script:notify.Icon = [System.Drawing.SystemIcons]::Application } catch { }
 }
 $script:notify.Visible = $true
 $script:notify.Text = 'Clippr'
+
+function Update-NotifyIcon {
+    # Rebuild the icon from the PNG; this also refreshes Explorer's cached
+    # tray image when the artwork changes.
+    $pair = $null
+    try { $pair = New-BrandIconPair 32 } catch { }
+    if (-not $pair) { return $false }
+    $oldIcon = $script:notifyIcon
+    $oldH = $script:notifyHIcon
+    $script:notifyIcon = $pair.Icon
+    $script:notifyHIcon = $pair.HIcon
+    $script:notify.Icon = $pair.Icon
+    if ($oldIcon) { try { $oldIcon.Dispose() } catch { } }
+    if ($oldH -ne [IntPtr]::Zero) { try { [void][ClipprNative]::DestroyIcon($oldH) } catch { } }
+    return $true
+}
+
+function Hide-ClipprToast {
+    if ($script:toastFade) { try { $script:toastFade.Stop(); $script:toastFade.Dispose() } catch { } ; $script:toastFade = $null }
+    if ($script:toastLife) { try { $script:toastLife.Stop(); $script:toastLife.Dispose() } catch { } ; $script:toastLife = $null }
+    if ($script:toast) {
+        try { $script:toast.Close(); $script:toast.Dispose() } catch { }
+        $script:toast = $null
+    }
+}
+
+function Show-ClipprToast {
+    Hide-ClipprToast
+    try { [void](Update-NotifyIcon) } catch { }
+    try {
+        $t = $script:Theme
+        $toast = New-Object ClipprToast
+        $toast.Art = $script:BrandImage
+        $toast.CardColor = $t.Card
+        $toast.BorderColor = $t.Border
+        $toast.TextColor = $t.Text
+        $toast.MutedColor = $t.Muted
+        $toast.AccentColor = $t.Accent
+        $screen = [System.Windows.Forms.Screen]::FromControl($form)
+        $wa = $screen.WorkingArea
+        $toast.Location = New-Object System.Drawing.Point(($wa.Right - $toast.Width - 18), ($wa.Bottom - $toast.Height - 18))
+        $toast.Opacity = 0.0
+        $script:toast = $toast
+        $toast.Add_Click({
+            try {
+                $form.Show()
+                if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) { $form.WindowState = 'Normal' }
+                $form.Activate()
+            } catch { }
+            Hide-ClipprToast
+        })
+        $toast.Show()
+
+        $fade = New-Object System.Windows.Forms.Timer
+        $fade.Interval = 15
+        $fade.Add_Tick({
+            if (-not $script:toast -or $script:toast.IsDisposed) { $this.Stop(); $this.Dispose(); return }
+            if ($script:toast.Opacity -lt 0.98) {
+                $script:toast.Opacity = [Math]::Min(0.98, $script:toast.Opacity + 0.12)
+            } else {
+                $this.Stop(); $this.Dispose()
+            }
+        })
+        $script:toastFade = $fade
+        $fade.Start()
+
+        $life = New-Object System.Windows.Forms.Timer
+        $life.Interval = 3200
+        $life.Add_Tick({
+            if ($script:toastLife) { try { $script:toastLife.Stop(); $script:toastLife.Dispose() } catch { } ; $script:toastLife = $null }
+            Hide-ClipprToast
+        })
+        $script:toastLife = $life
+        $life.Start()
+    } catch { }
+}
 
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
 $miOpen = New-Object System.Windows.Forms.ToolStripMenuItem('Open Clippr')
@@ -3400,7 +3634,7 @@ $form.Add_FormClosing({
         $e.Cancel = $true
         Save-State
         $form.Hide()
-        $script:notify.ShowBalloonTip(1500, 'Clippr', 'Still running in the tray.', [System.Windows.Forms.ToolTipIcon]::Info)
+        Show-ClipprToast
     } else {
         Save-State
     }
@@ -3512,6 +3746,7 @@ function Apply-Theme([string]$key) {
     $script:fHistMeta = New-Object System.Drawing.Font($t.MetaFont, $t.MetaFontSize)
     $script:fTabView  = New-Object System.Drawing.Font($t.TabFont, $t.TabFontSize, [System.Drawing.FontStyle]::Bold)
     $script:fTabItem  = New-Object System.Drawing.Font($t.TabFont, $t.TabFontSize, [System.Drawing.FontStyle]::Regular)
+    $script:fTag      = New-Object System.Drawing.Font($t.Font, 7, [System.Drawing.FontStyle]::Bold)
 
     Style-Button $script:btnCopy $true
     Style-Button $script:btnView $false
@@ -3563,7 +3798,10 @@ if ($script:autoNameProc) {
 }
 if ($script:autoNameOut) { try { Remove-Item -LiteralPath $script:autoNameOut -Force -ErrorAction SilentlyContinue } catch { } }
 try { foreach ($k in @($script:glassCache.Keys)) { $v = $script:glassCache[$k]; if ($v.Bmp) { $v.Bmp.Dispose() } } } catch { }
+try { Hide-ClipprToast } catch { }
 if ($script:BrandImage) { try { $script:BrandImage.Dispose() } catch { } }
 if ($script:AppIcon) { try { $script:AppIcon.Dispose() } catch { } }
 $script:notify.Visible = $false
 $script:notify.Dispose()
+if ($script:notifyIcon) { try { $script:notifyIcon.Dispose() } catch { } }
+if ($script:notifyHIcon -ne [IntPtr]::Zero) { try { [void][ClipprNative]::DestroyIcon($script:notifyHIcon) } catch { } }
